@@ -30,15 +30,28 @@ def parse_title(title, uploader):
     if not title:
         return uploader, "", "Uploader Fallback"
 
-    title = title.strip()
+    original_title = title.strip()
 
-    # Remove promotional junk like *BUY = FREE DOWNLOAD*
+    # --- STEP 1: Extract [bracketed] content ---
+    bracket_contents = re.findall(r"\[(.*?)\]", original_title)
+
+    KEYWORDS = ["remix", "edit", "flip", "bootleg", "rework", "vip"]
+
+    keep_brackets = []
+    for content in bracket_contents:
+        if any(re.search(k, content, re.IGNORECASE) for k in KEYWORDS):
+            keep_brackets.append(f"[{content}]")
+
+    # --- STEP 2: Remove ALL brackets from title ---
+    title = re.sub(r"\[.*?\]", "", original_title).strip()
+
+    # Remove promotional junk like *FREE DOWNLOAD*
     title = re.sub(r"\*.*?\*", "", title).strip()
 
     # Normalize dash types
     title = re.sub(r"[–—]", "-", title)
 
-    # Split only on first hyphen
+    # --- STEP 3: Split artist/title ---
     parts = re.split(r"\s*-\s*", title, maxsplit=1)
 
     if len(parts) == 2:
@@ -49,6 +62,10 @@ def parse_title(title, uploader):
         artist = uploader
         song = title.strip()
         source = "Uploader Fallback"
+
+    # --- STEP 4: Append valid brackets to song ---
+    if keep_brackets:
+        song = f"{song} {' '.join(keep_brackets)}".strip()
 
     return artist, song, source
 
