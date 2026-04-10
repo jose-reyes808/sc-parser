@@ -109,12 +109,12 @@ soundcloud_likes.xlsx
 ```
 requests
 pandas
-openpyxl
+python-dotenv
 ```
 
 Install manually:
 ```bash
-pip install requests pandas openpyxl
+pip install requests pandas python-dotenv
 ```
 
 ---
@@ -136,5 +136,4 @@ The next module will:
   - artist string similarity
 - Append:
   - Spotify track ID
-  - Match confidence score
   - Found / not found status
