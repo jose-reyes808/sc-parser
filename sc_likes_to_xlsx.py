@@ -3,10 +3,19 @@ import pandas as pd
 from datetime import datetime
 import time
 import re
+import os
+from dotenv import load_dotenv
 
-# --- CONFIG --- #
-SOUNDCLOUD_CLIENT_ID = 'EsIST4DWFy7hEa8mvPoVwdjZ4NTZqmei'
-SOUNDCLOUD_USER_ID = '58829397'
+# Load environment variables from .env file
+load_dotenv()
+SOUNDCLOUD_CLIENT_ID = os.getenv("SOUNDCLOUD_CLIENT_ID")
+SOUNDCLOUD_USER_ID = os.getenv("SOUNDCLOUD_USER_ID")
+
+if not SOUNDCLOUD_CLIENT_ID:
+    raise ValueError("Missing SOUNDCLOUD_CLIENT_ID in environment.")
+
+if not SOUNDCLOUD_USER_ID:
+    raise ValueError("Missing SOUNDCLOUD_USER_ID in environment.")
 
 headers = {
     "User-Agent": "Mozilla/5.0",
@@ -19,14 +28,14 @@ headers = {
 
 def parse_title(title, uploader):
     if not title:
-        return uploader, "", "SoundCloud User"
+        return uploader, "", "Uploader Fallback"
 
     title = title.strip()
 
-    # Remove promotional junk like
+    # Remove promotional junk like *BUY = FREE DOWNLOAD*
     title = re.sub(r"\*.*?\*", "", title).strip()
 
-    # Normalize dash types (en dash / em dash → hyphen)
+    # Normalize dash types
     title = re.sub(r"[–—]", "-", title)
 
     # Split only on first hyphen
@@ -35,11 +44,13 @@ def parse_title(title, uploader):
     if len(parts) == 2:
         artist = parts[0].strip()
         song = parts[1].strip()
+        source = "Parsed from Title"
     else:
         artist = uploader
         song = title.strip()
+        source = "Uploader Fallback"
 
-    return artist, song, "Parsed"
+    return artist, song, source
 
 
 def get_likes(client_id, user_id, backup_every=100):
@@ -105,7 +116,7 @@ def get_likes(client_id, user_id, backup_every=100):
                 "SoundCloud URL": track.get("permalink_url")
             })
 
-        # --- PAGINATION FIX (IMPORTANT) ---
+        # --- PAGINATION ---
         next_href = data.get("next_href")
 
         if next_href:
@@ -134,6 +145,10 @@ def main():
         for col in ['Date Uploaded', 'Date Liked']:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce').dt.tz_localize(None)
+
+        # Optional: quick breakdown of sources
+        print("\nArtist Source Breakdown:")
+        print(df["Artist Source"].value_counts())
 
         df.to_excel("soundcloud_likes.xlsx", index=False)
 
