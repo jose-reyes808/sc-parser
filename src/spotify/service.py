@@ -24,13 +24,15 @@ class SpotifyMatchService:
         self,
         input_file: Path,
         output_file: Path,
-        row_limit: int | None = 100,
         create_playlist: bool = False,
         playlist_name: str | None = None,
         playlist_public: bool = False,
+        start_from_bottom: bool = False,
     ) -> MatchRunSummary:
-        dataframe = self._load_input_file(input_file, row_limit)
+        dataframe = self._load_input_file(input_file)
         self._validate_columns(dataframe)
+        if start_from_bottom:
+            dataframe = dataframe.iloc[::-1].reset_index(drop=True)
 
         match_rows = []
         matched_uris: list[str] = []
@@ -113,12 +115,11 @@ class SpotifyMatchService:
             raise ValueError(f"Input file is missing required columns: {missing_list}")
 
     @staticmethod
-    def _load_input_file(input_file: Path, row_limit: int | None) -> pd.DataFrame:
+    def _load_input_file(input_file: Path) -> pd.DataFrame:
         if not input_file.exists():
             raise FileNotFoundError(f"Input file not found: {input_file}")
 
-        effective_limit = None if row_limit in (None, 0) else row_limit
-        return pd.read_excel(input_file, nrows=effective_limit)
+        return pd.read_excel(input_file)
 
     @staticmethod
     def _safe_cell(value: object) -> str:

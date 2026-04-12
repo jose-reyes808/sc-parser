@@ -115,28 +115,34 @@ python soundcloud_export_likes.py
 
 ### Spotify matching
 
-Debug on the first 100 rows:
-
-```bash
-python spotify_match_from_excel.py --limit 100
-```
-
 Process the full file:
 
 ```bash
-python spotify_match_from_excel.py --limit 0
+python spotify_match_from_excel.py
+```
+
+Process the full file starting from the bottom of the sheet:
+
+```bash
+python spotify_match_from_excel.py --start-from-bottom
 ```
 
 Use a different Excel input file:
 
 ```bash
-python spotify_match_from_excel.py --input-file your_file.xlsx --limit 100
+python spotify_match_from_excel.py --input-file your_file.xlsx
 ```
 
 Create a private playlist from matched rows:
 
 ```bash
-python spotify_match_from_excel.py --limit 100 --create-playlist --playlist-name "SoundCloud Imports"
+python spotify_match_from_excel.py --create-playlist --playlist-name "SoundCloud Imports"
+```
+
+Create a playlist from all rows in bottom-to-top order:
+
+```bash
+python spotify_match_from_excel.py --start-from-bottom --create-playlist --playlist-name "SoundCloud Likes"
 ```
 
 ## First Spotify Run

@@ -24,12 +24,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Output Excel file with Spotify match columns appended.",
     )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=100,
-        help="Maximum number of rows to process. Use 0 to process all rows.",
-    )
-    parser.add_argument(
         "--create-playlist",
         action="store_true",
         help="Create a Spotify playlist from matched tracks.",
@@ -43,6 +37,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--public",
         action="store_true",
         help="Create a public playlist. Defaults to private.",
+    )
+    parser.add_argument(
+        "--start-from-bottom",
+        action="store_true",
+        help="Process rows from the bottom of the Excel sheet upward.",
     )
     return parser
 
@@ -60,10 +59,10 @@ def main() -> None:
     summary = spotify_service.run(
         input_file=project_root / args.input_file,
         output_file=project_root / args.output_file,
-        row_limit=args.limit,
         create_playlist=args.create_playlist,
         playlist_name=args.playlist_name,
         playlist_public=args.public,
+        start_from_bottom=args.start_from_bottom,
     )
 
     print("\nSpotify Match Summary:")
