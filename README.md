@@ -1,29 +1,49 @@
-# SoundCloud Likes → Excel → Spotify Pipeline (WIP)
+# SoundCloud Parser
 
-## Overview
+This project exports SoundCloud likes to Excel, matches those rows against Spotify tracks, and can create a Spotify playlist from the matched results.
 
-## What Changed
+## Why This Layout
 
-1. Extract SoundCloud likes  
-2. Export them to Excel  
-3. Match tracks on Spotify  
-4. Create a Spotify playlist  
-5. Update Excel with Spotify match status  
+For a repo like this, a clean pattern is:
+
+- small runnable scripts at the repo root
+- a single `src/` folder for application code
+- domain folders inside `src/` such as `soundcloud/` and `spotify/`
+- shared config and models at the top of `src/`
+
+That avoids the redundant repo-name directory while still keeping the project organized.
 
 ## Project Structure
 
 ```text
 soundcloud-parser/
-|-- sc_likes_to_xlsx.py
-|-- client.py
-|-- exporter.py
-|-- models.py
-|-- parser.py
+|-- soundcloud_export_likes.py
+|-- spotify_match_from_excel.py
 |-- parser_settings.example.json
-|-- service.py
-|-- settings.py
+|-- .env.example
+|-- src/
+|   |-- __init__.py
+|   |-- config.py
+|   |-- models.py
+|   |-- soundcloud/
+|   |   |-- __init__.py
+|   |   |-- client.py
+|   |   |-- exporter.py
+|   |   |-- parser.py
+|   |   `-- service.py
+|   `-- spotify/
+|       |-- __init__.py
+|       |-- client.py
+|       |-- matcher.py
+|       `-- service.py
 `-- .env
 ```
+
+## Pipeline
+
+1. Export SoundCloud likes to Excel
+2. Match the Excel rows to Spotify tracks
+3. Optionally create a Spotify playlist from matched tracks
 
 ## Installation
 
@@ -35,11 +55,14 @@ pip install -r requirements.txt
 
 ### 1. Environment variables
 
-Create a `.env` file with your SoundCloud credentials:
+Create a `.env` file with your SoundCloud and Spotify credentials. You can start from `.env.example`:
 
-```bash
+```env
 SOUNDCLOUD_CLIENT_ID=your_client_id
 SOUNDCLOUD_USER_ID=your_user_id
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 ```
 
 ### 2. Parser settings
@@ -65,34 +88,65 @@ You can update these lists there:
 - `remove_patterns`
 - `paren_keywords`
 
-## Usage
+## Spotify App Setup
 
-```bash
-python sc_likes_to_xlsx.py
+To use Spotify matching or playlist creation, create a Spotify app in the Spotify Developer Dashboard:
+
+1. Go to `https://developer.spotify.com/dashboard`
+2. Create a new app
+3. Open the app settings
+4. Copy the `Client ID`
+5. Reveal and copy the `Client Secret`
+6. Add this Redirect URI:
+
+```text
+http://127.0.0.1:8888/callback
 ```
 
-## Output
+The redirect URI in the dashboard must exactly match the value in your `.env`.
 
-Running the script generates:
+## Usage
 
-- `soundcloud_likes.xlsx`
-- `soundcloud_livesets.xlsx`
+### SoundCloud export
 
-Each row includes:
+```bash
+python soundcloud_export_likes.py
+```
 
-- Artist
-- Song
-- Artist Source
-- Original Title
-- Date Uploaded
-- Date Liked
-- SoundCloud URL
+### Spotify matching
 
-## Design Notes
+Debug on the first 100 rows:
 
-- `SoundCloudClient` handles API pagination and retry behavior
-- `SoundCloudTitleParser` owns title cleanup, parsing, and liveset classification
-- `ExcelExporter` writes formatted Excel output
-- `LikesExportService` coordinates the workflow
+```bash
+python spotify_match_from_excel.py --limit 100
+```
 
-This keeps the code easier to test, extend, and eventually grow into the Spotify pipeline you described, without adding extra directory depth.
+Process the full file:
+
+```bash
+python spotify_match_from_excel.py --limit 0
+```
+
+Use a different Excel input file:
+
+```bash
+python spotify_match_from_excel.py --input-file your_file.xlsx --limit 100
+```
+
+Create a private playlist from matched rows:
+
+```bash
+python spotify_match_from_excel.py --limit 100 --create-playlist --playlist-name "SoundCloud Imports"
+```
+
+## First Spotify Run
+
+On the first Spotify run, the script will:
+
+1. Print an authorization URL
+2. Open it in your browser when possible
+3. Ask you to approve access
+4. Redirect your browser to `http://127.0.0.1:8888/callback`
+5. Ask you to paste that full redirected URL back into the terminal
+
+The script stores refreshable tokens in `spotify_tokens.json` for future runs.

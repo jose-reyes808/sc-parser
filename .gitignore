@@ -1,4 +1,5 @@
 .env
 parser_settings.json
+spotify_tokens.json
 *.xlsx
 __pycache__/

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from models import ParserSettings
+from src.models import ParserSettings
 
 
 class SoundCloudTitleParser:

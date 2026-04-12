@@ -52,3 +52,35 @@ class ExportResult:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class SpotifyConfig:
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    token_file: Path
+    scopes: list[str]
+    request_timeout: int = 30
+
+
+@dataclass(frozen=True)
+class SpotifyTrackMatch:
+    spotify_track_id: str
+    spotify_uri: str
+    matched_artist: str
+    matched_song: str
+    match_score: float
+    search_query: str
+    album_name: str | None = None
+    external_url: str | None = None
+
+
+@dataclass(frozen=True)
+class MatchRunSummary:
+    rows_processed: int
+    rows_matched: int
+    rows_unmatched: int
+    output_file: Path
+    playlist_id: str | None = None
+    playlist_url: str | None = None

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from models import AppConfig, ParserSettings
+from src.models import AppConfig, ParserSettings, SpotifyConfig
 
 
 DEFAULT_PAREN_KEYWORDS = [
@@ -81,6 +81,10 @@ DEFAULT_REMOVE_PATTERNS = [
 
 SETTINGS_EXAMPLE_FILE = "parser_settings.example.json"
 SETTINGS_LOCAL_FILE = "parser_settings.json"
+SPOTIFY_SCOPES = [
+    "playlist-modify-private",
+    "playlist-modify-public",
+]
 
 
 class SettingsLoader:
@@ -88,7 +92,7 @@ class SettingsLoader:
         self.project_root = project_root
 
     def load_app_config(self) -> AppConfig:
-        load_dotenv(self.project_root / ".env")
+        self._load_environment()
 
         soundcloud_client_id = self._require_env("SOUNDCLOUD_CLIENT_ID")
         soundcloud_user_id = self._require_env("SOUNDCLOUD_USER_ID")
@@ -126,6 +130,19 @@ class SettingsLoader:
                 DEFAULT_REMOVE_PATTERNS,
             ),
         )
+
+    def load_spotify_config(self) -> SpotifyConfig:
+        self._load_environment()
+        return SpotifyConfig(
+            client_id=self._require_env("SPOTIFY_CLIENT_ID"),
+            client_secret=self._require_env("SPOTIFY_CLIENT_SECRET"),
+            redirect_uri=self._require_env("SPOTIFY_REDIRECT_URI"),
+            token_file=self.project_root / "spotify_tokens.json",
+            scopes=SPOTIFY_SCOPES.copy(),
+        )
+
+    def _load_environment(self) -> None:
+        load_dotenv(self.project_root / ".env")
 
     def _load_settings_payload(self) -> dict[str, object]:
         local_path = self.project_root / SETTINGS_LOCAL_FILE

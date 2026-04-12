@@ -4,8 +4,8 @@ import time
 
 import requests
 
-from models import TrackRecord
-from parser import SoundCloudTitleParser
+from src.models import TrackRecord
+from src.soundcloud.parser import SoundCloudTitleParser
 
 
 class SoundCloudClient:

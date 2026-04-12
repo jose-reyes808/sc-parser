@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from service import LikesExportService
-from settings import SettingsLoader
+from src.config import SettingsLoader
+from src.soundcloud.service import LikesExportService
 
 
 def main() -> None:

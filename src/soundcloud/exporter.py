@@ -5,8 +5,8 @@ from pathlib import Path
 import pandas as pd
 from openpyxl import load_workbook
 
-from models import ExportResult, TrackRecord
-from parser import SoundCloudTitleParser
+from src.models import ExportResult, TrackRecord
+from src.soundcloud.parser import SoundCloudTitleParser
 
 
 class ExcelExporter:

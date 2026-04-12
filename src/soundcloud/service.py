@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from client import SoundCloudClient
-from exporter import ExcelExporter
-from models import AppConfig, ExportResult, ParserSettings
-from parser import SoundCloudTitleParser
+from src.models import AppConfig, ExportResult, ParserSettings
+from src.soundcloud.client import SoundCloudClient
+from src.soundcloud.exporter import ExcelExporter
+from src.soundcloud.parser import SoundCloudTitleParser
 
 
 class LikesExportService:
