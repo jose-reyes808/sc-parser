@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import requests
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -120,6 +121,20 @@ def create_app() -> FastAPI:
             request.session.pop("pending_import", None)
             request.session.pop("spotify_oauth_state", None)
             queue.enqueue(run_import_job, job.id, job_timeout="30m")
+        except requests.exceptions.HTTPError as error:
+            logger.exception("Spotify callback failed during import initialization.")
+            if error.response is not None and error.response.status_code == 403:
+                request.session["flash_message"] = (
+                    "Spotify login succeeded, but this Spotify account is not authorized for this app yet. "
+                    "The app owner needs to add your Spotify name and email to the app's authorized users "
+                    "in the Spotify Developer Dashboard."
+                )
+            else:
+                request.session["flash_message"] = (
+                    "Spotify login succeeded, but the import could not be started. "
+                    "Please try again in a moment."
+                )
+            return RedirectResponse("/", status_code=303)
         except Exception:
             logger.exception("Spotify callback failed during import initialization.")
             request.session["flash_message"] = (
