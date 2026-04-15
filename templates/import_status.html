@@ -47,7 +47,7 @@
                 <div class="mt-8 grid gap-4 md:grid-cols-2">
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <p class="text-sm text-slate-400">Current Track</p>
-                        <p id="current-track" class="mt-2 text-lg font-medium text-white">Waiting to start...</p>
+                        <p id="current-track" class="mt-2 text-lg font-medium text-white"></p>
                     </div>
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <p class="text-sm text-slate-400">Spotify Account</p>
@@ -105,7 +105,7 @@
             const progress = data.progress_percentage || 0;
             const currentTrack = data.current_artist && data.current_song
                 ? `${data.current_artist} - ${data.current_song}`
-                : (data.current_phase || "Waiting to start...");
+                : "";
 
             document.getElementById("status-label").textContent = data.status;
             document.getElementById("phase-label").textContent = data.current_phase || data.status;

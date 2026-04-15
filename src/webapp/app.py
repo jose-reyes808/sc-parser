@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -14,6 +15,9 @@ from src.webapp.queue import create_queue
 from src.webapp.spotify_oauth import SpotifyOAuthService
 from src.webapp.storage import ImportJobStore
 from src.webapp.tasks import run_import_job
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -95,26 +99,34 @@ def create_app() -> FastAPI:
             request.session["flash_message"] = "Spotify authorization could not be completed."
             return RedirectResponse("/", status_code=303)
 
-        tokens = oauth_service.exchange_code(code)
-        profile = oauth_service.get_current_user_profile(tokens.access_token)
+        try:
+            tokens = oauth_service.exchange_code(code)
+            profile = oauth_service.get_current_user_profile(tokens.access_token)
 
-        pending_request = PendingImportRequest(
-            soundcloud_user_id=str(pending_payload["soundcloud_user_id"]),
-            playlist_name=str(pending_payload["playlist_name"]),
-            start_from_bottom=bool(pending_payload["start_from_bottom"]),
-        )
+            pending_request = PendingImportRequest(
+                soundcloud_user_id=str(pending_payload["soundcloud_user_id"]),
+                playlist_name=str(pending_payload["playlist_name"]),
+                start_from_bottom=bool(pending_payload["start_from_bottom"]),
+            )
 
-        job = store.create_job(
-            request=pending_request,
-            soundcloud_client_id=web_config.soundcloud_client_id,
-            spotify_tokens=tokens,
-            spotify_user_id=str(profile.get("id")) if profile.get("id") else None,
-            spotify_display_name=str(profile.get("display_name")) if profile.get("display_name") else None,
-        )
+            job = store.create_job(
+                request=pending_request,
+                soundcloud_client_id=web_config.soundcloud_client_id,
+                spotify_tokens=tokens,
+                spotify_user_id=str(profile.get("id")) if profile.get("id") else None,
+                spotify_display_name=str(profile.get("display_name")) if profile.get("display_name") else None,
+            )
 
-        request.session.pop("pending_import", None)
-        request.session.pop("spotify_oauth_state", None)
-        queue.enqueue(run_import_job, job.id, job_timeout="30m")
+            request.session.pop("pending_import", None)
+            request.session.pop("spotify_oauth_state", None)
+            queue.enqueue(run_import_job, job.id, job_timeout="30m")
+        except Exception:
+            logger.exception("Spotify callback failed during import initialization.")
+            request.session["flash_message"] = (
+                "Spotify login succeeded, but the import could not be started. "
+                "Please try again in a moment."
+            )
+            return RedirectResponse("/", status_code=303)
 
         return RedirectResponse(f"/imports/{job.id}", status_code=303)
 
