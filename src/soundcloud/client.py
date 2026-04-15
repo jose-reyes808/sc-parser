@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 
 import requests
@@ -10,6 +11,13 @@ from src.soundcloud.parser import SoundCloudTitleParser
 
 class SoundCloudClient:
     BASE_URL = "https://api-v2.soundcloud.com"
+    DEFAULT_HEADERS = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://soundcloud.com/",
+        "Origin": "https://soundcloud.com",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
     def __init__(
         self,
@@ -24,13 +32,7 @@ class SoundCloudClient:
         self.title_parser = title_parser
         self.page_limit = page_limit
         self.request_timeout = request_timeout
-        self.headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json, text/plain, */*",
-            "Referer": "https://soundcloud.com/",
-            "Origin": "https://soundcloud.com",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
+        self.headers = self.DEFAULT_HEADERS.copy()
 
     def get_likes(self) -> list[TrackRecord]:
         print("Fetching liked tracks...")
@@ -114,3 +116,41 @@ class SoundCloudClient:
             )
 
         return parsed_records
+
+    @classmethod
+    def resolve_user_id(
+        cls,
+        client_id: str,
+        profile_input: str,
+        request_timeout: int = 30,
+    ) -> str:
+        normalized_input = profile_input.strip()
+        if not normalized_input:
+            raise ValueError("A SoundCloud profile URL or user ID is required.")
+
+        if re.fullmatch(r"\d+", normalized_input):
+            return normalized_input
+
+        if "soundcloud.com/" not in normalized_input:
+            raise ValueError(
+                "Enter a full SoundCloud profile URL like https://soundcloud.com/username "
+                "or a numeric SoundCloud user ID."
+            )
+
+        response = requests.get(
+            f"{cls.BASE_URL}/resolve",
+            headers=cls.DEFAULT_HEADERS,
+            params={
+                "url": normalized_input,
+                "client_id": client_id,
+            },
+            timeout=request_timeout,
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        user_id = payload.get("id")
+        if user_id is None:
+            raise ValueError("Could not resolve a SoundCloud user ID from that profile URL.")
+
+        return str(user_id)

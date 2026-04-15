@@ -7,3 +7,7 @@ uvicorn
 jinja2
 python-multipart
 itsdangerous
+sqlalchemy
+psycopg[binary]
+redis
+rq

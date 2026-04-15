@@ -2,16 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.config import SettingsLoader
 from src.models import PendingImportRequest
-from src.webapp.import_runner import WebImportRunner
+from src.soundcloud.client import SoundCloudClient
+from src.webapp.queue import create_queue
 from src.webapp.spotify_oauth import SpotifyOAuthService
 from src.webapp.storage import ImportJobStore
+from src.webapp.tasks import run_import_job
 
 
 def create_app() -> FastAPI:
@@ -19,9 +21,9 @@ def create_app() -> FastAPI:
     settings_loader = SettingsLoader(project_root)
     web_config = settings_loader.load_web_app_config()
     templates = Jinja2Templates(directory=str(project_root / "templates"))
-    store = ImportJobStore(web_config.database_file)
+    store = ImportJobStore(web_config.database_url)
     oauth_service = SpotifyOAuthService(web_config)
-    import_runner = WebImportRunner(settings_loader, store, oauth_service)
+    queue = create_queue(web_config.redis_url)
 
     app = FastAPI(title="SoundCloud Parser Web App")
     app.add_middleware(SessionMiddleware, secret_key=web_config.session_secret)
@@ -41,18 +43,29 @@ def create_app() -> FastAPI:
     @app.post("/imports/start")
     async def start_import(
         request: Request,
-        soundcloud_user_id: str = Form(...),
+        soundcloud_profile_url: str = Form(...),
         playlist_name: str = Form("SoundCloud Likes"),
         start_from_bottom: str | None = Form(None),
     ) -> RedirectResponse:
+        try:
+            soundcloud_user_id = SoundCloudClient.resolve_user_id(
+                client_id=web_config.soundcloud_client_id,
+                profile_input=soundcloud_profile_url,
+                request_timeout=web_config.request_timeout,
+            )
+        except Exception as error:
+            request.session["flash_message"] = f"SoundCloud profile could not be resolved: {error}"
+            return RedirectResponse("/", status_code=303)
+
         pending_request = PendingImportRequest(
-            soundcloud_user_id=soundcloud_user_id.strip(),
+            soundcloud_user_id=soundcloud_user_id,
             playlist_name=playlist_name.strip() or "SoundCloud Likes",
             start_from_bottom=start_from_bottom == "on",
         )
         oauth_state = oauth_service.generate_state()
 
         request.session["pending_import"] = {
+            "soundcloud_profile_url": soundcloud_profile_url.strip(),
             "soundcloud_user_id": pending_request.soundcloud_user_id,
             "playlist_name": pending_request.playlist_name,
             "start_from_bottom": pending_request.start_from_bottom,
@@ -67,7 +80,6 @@ def create_app() -> FastAPI:
     @app.get("/auth/spotify/callback")
     async def spotify_callback(
         request: Request,
-        background_tasks: BackgroundTasks,
         code: str | None = None,
         state: str | None = None,
         error: str | None = None,
@@ -102,7 +114,7 @@ def create_app() -> FastAPI:
 
         request.session.pop("pending_import", None)
         request.session.pop("spotify_oauth_state", None)
-        background_tasks.add_task(import_runner.run_import, job.id)
+        queue.enqueue(run_import_job, job.id, job_timeout="30m")
 
         return RedirectResponse(f"/imports/{job.id}", status_code=303)
 

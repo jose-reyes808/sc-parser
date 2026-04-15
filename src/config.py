@@ -56,6 +56,7 @@ DEFAULT_LIVESET_KEYWORDS = [
 DEFAULT_CUTOFF_PATTERNS = [
     r"\bout now\b.*",
     r"\bsupported by\b.*",
+    r"\bplayed by\b.*",
     r"\bavailable\b.*",
     r"\bout\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b.*",
 ]
@@ -145,7 +146,11 @@ class SettingsLoader:
         self._load_environment()
         return WebAppConfig(
             project_root=self.project_root,
-            database_file=self.project_root / "webapp.sqlite3",
+            database_url=self._get_env(
+                "DATABASE_URL",
+                f"sqlite:///{(self.project_root / 'webapp.sqlite3').as_posix()}",
+            ),
+            redis_url=self._get_env("REDIS_URL", "redis://localhost:6379/0"),
             session_secret=self._require_env("WEBAPP_SESSION_SECRET"),
             soundcloud_client_id=self._require_env("SOUNDCLOUD_CLIENT_ID"),
             spotify_client_id=self._require_env("SPOTIFY_CLIENT_ID"),
@@ -156,6 +161,7 @@ class SettingsLoader:
             ),
             spotify_scopes=SPOTIFY_SCOPES.copy(),
             app_base_url=self._get_env("APP_BASE_URL", "http://127.0.0.1:8000"),
+            environment=self._get_env("APP_ENV", "development"),
         )
 
     def _load_environment(self) -> None:

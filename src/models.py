@@ -67,7 +67,8 @@ class SpotifyConfig:
 @dataclass(frozen=True)
 class WebAppConfig:
     project_root: Path
-    database_file: Path
+    database_url: str
+    redis_url: str
     session_secret: str
     soundcloud_client_id: str
     spotify_client_id: str
@@ -75,6 +76,7 @@ class WebAppConfig:
     spotify_redirect_uri: str
     spotify_scopes: list[str]
     app_base_url: str
+    environment: str = "development"
     request_timeout: int = 30
 
 
