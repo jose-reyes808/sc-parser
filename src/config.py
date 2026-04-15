@@ -155,10 +155,7 @@ class SettingsLoader:
             soundcloud_client_id=self._require_env("SOUNDCLOUD_CLIENT_ID"),
             spotify_client_id=self._require_env("SPOTIFY_CLIENT_ID"),
             spotify_client_secret=self._require_env("SPOTIFY_CLIENT_SECRET"),
-            spotify_redirect_uri=self._get_env(
-                "WEBAPP_SPOTIFY_REDIRECT_URI",
-                self._require_env("SPOTIFY_REDIRECT_URI"),
-            ),
+            spotify_redirect_uri=self._require_env("WEBAPP_SPOTIFY_REDIRECT_URI"),
             spotify_scopes=SPOTIFY_SCOPES.copy(),
             app_base_url=self._get_env("APP_BASE_URL", "http://127.0.0.1:8000"),
             environment=self._get_env("APP_ENV", "development"),

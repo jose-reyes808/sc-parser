@@ -1,22 +1,45 @@
 # SoundCloud Parser
 
-This project is evolving from a local script into a backend-first web app that imports SoundCloud likes, matches them on Spotify, and creates a Spotify playlist for the user through Spotify OAuth.
+SoundCloud Parser is now a backend-first web app that takes a SoundCloud profile URL, sends the user through Spotify OAuth, imports their SoundCloud likes, matches tracks on Spotify, and creates a Spotify playlist for them.
 
-## Current Direction
+The current public deployment is running on Render at `https://soundcloud-parser.onrender.com`.
 
-The repo now supports two modes:
+## Current Status
 
-- legacy local scripts for direct command-line use
-- a FastAPI web app scaffold prepared for Render deployment
+The web app is the primary product now. The old one-off CLI entry scripts have been removed from the repo root so the codebase reflects the deployed experience more accurately.
 
-The web app is the path forward.
+What currently works:
+
+- SoundCloud profile URL input on the landing page
+- backend resolution of the SoundCloud profile to a user ID
+- Spotify OAuth login and consent flow
+- background import jobs through Redis + RQ
+- SoundCloud likes fetching and Spotify matching
+- private Spotify playlist creation
+- live status page with:
+  - current phase
+  - processed likes out of total likes
+  - matched and unmatched counts
+  - current track being processed
+- improved Tailwind-based UI for the landing page and status page
+
+## Product Flow
+
+1. User opens the site.
+2. User pastes a SoundCloud profile URL and chooses a playlist name.
+3. The backend resolves that profile into a SoundCloud user ID.
+4. The user is redirected to Spotify and approves access.
+5. The callback creates an import job in Postgres.
+6. A background worker pulls the job from Redis.
+7. The worker fetches SoundCloud likes, matches tracks on Spotify, and creates the playlist.
+8. The status page polls the backend and shows live progress until the playlist is ready.
+
+No Excel export is required for the web flow.
 
 ## Project Structure
 
 ```text
 soundcloud-parser/
-|-- soundcloud_export_likes.py
-|-- spotify_match_from_excel.py
 |-- webapp.py
 |-- worker.py
 |-- render.yaml
@@ -52,51 +75,6 @@ soundcloud-parser/
         `-- tasks.py
 ```
 
-## Web App Flow
-
-1. User opens the home page
-2. User enters:
-   - SoundCloud profile URL
-   - desired Spotify playlist name
-3. Backend resolves the SoundCloud profile URL to a user ID
-4. App redirects the user to Spotify OAuth
-5. Spotify redirects back to the app callback
-6. Backend creates an import job in Postgres
-7. A Redis-backed worker fetches SoundCloud likes, matches them on Spotify, and creates the playlist
-8. User watches progress on a status page
-
-No Excel file is needed for the web flow.
-
-## Installation
-
-```bash
-pip install -r requirements.txt
-```
-
-## Environment Variables
-
-Start from `.env.example`.
-
-```env
-SOUNDCLOUD_CLIENT_ID=your_soundcloud_client_id
-SOUNDCLOUD_USER_ID=your_soundcloud_user_id
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
-WEBAPP_SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/spotify/callback
-WEBAPP_SESSION_SECRET=replace_with_a_long_random_secret
-APP_BASE_URL=http://127.0.0.1:8000
-APP_ENV=development
-DATABASE_URL=sqlite:///webapp.sqlite3
-REDIS_URL=redis://localhost:6379/0
-```
-
-Notes:
-
-- `SPOTIFY_REDIRECT_URI` is still used by the older CLI script flow
-- `WEBAPP_SPOTIFY_REDIRECT_URI` is used by the FastAPI web app
-- `SOUNDCLOUD_CLIENT_ID` stays server-side and is not entered by users
-
 ## Local Development
 
 Install dependencies:
@@ -105,15 +83,13 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Start Redis locally if you want to use the worker flow.
-
 Run the web app:
 
 ```bash
 python webapp.py
 ```
 
-Run the worker:
+Run the worker in a second terminal:
 
 ```bash
 python worker.py
@@ -125,81 +101,95 @@ Then open:
 http://127.0.0.1:8000
 ```
 
-## Render Deployment
+For local development, the app defaults to SQLite and a local Redis URL unless you override them in `.env`.
 
-This repo now includes [render.yaml](./render.yaml) for a Render Blueprint deployment.
+## Environment Variables
 
-### Architecture on Render
+Start from `.env.example`.
 
-- Web service: `soundcloud-parser`
-- Worker service: `soundcloud-parser-worker`
-- Redis: `soundcloud-parser-redis`
-- Postgres: `soundcloud-parser-db`
-
-### Deployment Steps
-
-1. Push this repo to GitHub.
-2. Create a Render account and connect your GitHub repo.
-3. In Render, create a new Blueprint deployment from this repo.
-4. Render will read `render.yaml` and provision:
-   - web service
-   - worker service
-   - Redis
-   - Postgres
-5. Set the required secret/config env vars in Render:
-   - `SOUNDCLOUD_CLIENT_ID`
-   - `SPOTIFY_CLIENT_ID`
-   - `SPOTIFY_CLIENT_SECRET`
-   - `APP_BASE_URL`
-   - `SPOTIFY_REDIRECT_URI`
-   - `WEBAPP_SPOTIFY_REDIRECT_URI`
-6. Let Render generate `WEBAPP_SESSION_SECRET`, or replace it with your own long random secret.
-7. Once the web service has a public Render URL, set:
-   - `APP_BASE_URL=https://your-render-url.onrender.com`
-   - `WEBAPP_SPOTIFY_REDIRECT_URI=https://your-render-url.onrender.com/auth/spotify/callback`
-8. In Spotify Developer Dashboard, add that exact production callback URL.
-9. Attach your custom domain in Render.
-10. Update:
-   - `APP_BASE_URL=https://yourdomain.com`
-   - `WEBAPP_SPOTIFY_REDIRECT_URI=https://yourdomain.com/auth/spotify/callback`
-11. In Spotify Developer Dashboard, add the custom-domain callback too:
-   - `https://yourdomain.com/auth/spotify/callback`
-12. Redeploy if needed and test the full OAuth flow.
-
-## What I Still Need From You
-
-To finish real public deployment, I still need these from you:
-
-- a Render account connected to this GitHub repo
-- a working server-side `SOUNDCLOUD_CLIENT_ID`
-- your Spotify app credentials
-- the public Render URL once it exists
-- your custom domain name once you buy/attach it
-
-## Current MVP Backend Features
-
-- FastAPI app with session support
-- Spotify OAuth redirect and callback flow
-- Postgres-ready database layer via SQLAlchemy
-- Redis-backed RQ job queue
-- dedicated worker process for imports
-- SoundCloud profile URL resolution on the backend
-- SoundCloud likes fetch directly from API
-- Spotify matching and playlist creation
-- import status page with auto-refresh
-
-## Legacy CLI Scripts
-
-These still exist while the web app is being built out:
-
-```bash
-python soundcloud_export_likes.py
-python spotify_match_from_excel.py --start-from-bottom --create-playlist --playlist-name "SoundCloud Likes"
+```env
+SOUNDCLOUD_CLIENT_ID=your_soundcloud_client_id
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+WEBAPP_SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/spotify/callback
+WEBAPP_SESSION_SECRET=replace_with_a_long_random_secret
+APP_BASE_URL=http://127.0.0.1:8000
+APP_ENV=development
+DATABASE_URL=sqlite:///webapp.sqlite3
+REDIS_URL=redis://localhost:6379/0
 ```
 
-## Next Good Backend Steps
+Notes:
 
-- store matched and unmatched track rows in Postgres
-- add retry / dead-letter handling for failed jobs
-- add app-level auth if you want saved import history per user
-- support more SoundCloud URL variations and validation
+- `SOUNDCLOUD_CLIENT_ID` stays entirely server-side and is never entered by the user
+- `WEBAPP_SPOTIFY_REDIRECT_URI` must exactly match the callback configured in the Spotify Developer Dashboard
+- in production, `DATABASE_URL` should point to Render Postgres and `REDIS_URL` should point to Render Key Value
+
+## Render Deployment
+
+This repo includes [render.yaml](./render.yaml) for a Render Blueprint deployment, but the current app was also brought up successfully by creating the services manually in Render.
+
+### Render Services
+
+- Web service: `soundcloud-parser`
+- Background worker: `soundcloud-parser-worker`
+- Postgres database: `soundcloud-parser-db`
+- Key Value / Redis: `soundcloud-parser-redis`
+
+### Manual Render Setup
+
+1. Push the repo to GitHub.
+2. Create a Render account and connect the repo.
+3. Create a **Web Service** named `soundcloud-parser`.
+4. Use:
+   - build command: `pip install -r requirements.txt`
+   - start command: `uvicorn webapp:app --host 0.0.0.0 --port $PORT`
+5. Create a **Postgres** instance named `soundcloud-parser-db`.
+6. Copy its internal connection string into `DATABASE_URL`.
+7. Create a **Key Value** instance named `soundcloud-parser-redis`.
+8. Copy its internal connection string into `REDIS_URL`.
+9. Create a **Background Worker** named `soundcloud-parser-worker`.
+10. Use:
+    - build command: `pip install -r requirements.txt`
+    - start command: `python worker.py`
+11. Add the same app environment variables to both the web service and the worker.
+12. Set:
+    - `APP_ENV=production`
+    - `APP_BASE_URL=https://soundcloud-parser.onrender.com`
+    - `WEBAPP_SPOTIFY_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/spotify/callback`
+13. In the Spotify Developer Dashboard, add that exact callback URL.
+
+### Required Render Environment Variables
+
+- `APP_ENV=production`
+- `APP_BASE_URL=https://soundcloud-parser.onrender.com`
+- `WEBAPP_SESSION_SECRET=<long random secret>`
+- `SOUNDCLOUD_CLIENT_ID=<server-side soundcloud client id>`
+- `SPOTIFY_CLIENT_ID=<spotify app client id>`
+- `SPOTIFY_CLIENT_SECRET=<spotify app client secret>`
+- `WEBAPP_SPOTIFY_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/spotify/callback`
+- `DATABASE_URL=<internal postgres url>`
+- `REDIS_URL=<internal key value url>`
+
+## UI and Progress Tracking
+
+The current UI is server-rendered with Tailwind CSS loaded via CDN. That keeps the stack simple while still making the app feel much more polished than the original templates.
+
+The status page now polls `/api/imports/{job_id}` and displays:
+
+- current job state
+- current processing phase
+- total likes discovered
+- processed likes so far
+- matched count
+- unmatched count
+- the current artist and song being processed
+- the final playlist link when the job completes
+
+## Next Good Steps
+
+- force Spotify account selection with `show_dialog=true` for safer multi-user behavior
+- persist per-track match results in Postgres
+- add retries and stronger failure reporting around import jobs
+- support more SoundCloud URL formats and validation rules
+- move to a real frontend build if you decide to introduce React later

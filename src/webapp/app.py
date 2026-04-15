@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -134,6 +134,38 @@ def create_app() -> FastAPI:
             request=request,
             name="import_status.html",
             context={"job": job},
+        )
+
+    @app.get("/api/imports/{job_id}", response_class=JSONResponse)
+    async def import_status_api(job_id: str) -> JSONResponse:
+        try:
+            job = store.get_job(job_id)
+        except KeyError:
+            return JSONResponse({"error": "Import job not found."}, status_code=404)
+
+        progress_percentage = 0
+        if job.total_tracks > 0:
+            progress_percentage = round((job.processed_tracks / job.total_tracks) * 100, 1)
+
+        return JSONResponse(
+            {
+                "id": job.id,
+                "status": job.status,
+                "current_phase": job.current_phase,
+                "soundcloud_user_id": job.soundcloud_user_id,
+                "playlist_name": job.playlist_name,
+                "spotify_display_name": job.spotify_display_name,
+                "spotify_user_id": job.spotify_user_id,
+                "matched_count": job.matched_count,
+                "unmatched_count": job.unmatched_count,
+                "total_tracks": job.total_tracks,
+                "processed_tracks": job.processed_tracks,
+                "current_artist": job.current_artist,
+                "current_song": job.current_song,
+                "playlist_url": job.playlist_url,
+                "error_message": job.error_message,
+                "progress_percentage": progress_percentage,
+            }
         )
 
     return app

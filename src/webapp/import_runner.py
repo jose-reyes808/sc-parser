@@ -24,7 +24,7 @@ class WebImportRunner:
 
     def run_import(self, job_id: str) -> None:
         job = self.store.get_job(job_id)
-        self.store.update_status(job_id, "running")
+        self.store.update_status(job_id, "running", current_phase="Fetching SoundCloud likes")
 
         try:
             parser_settings = self.settings_loader.load_parser_settings()
@@ -43,6 +43,15 @@ class WebImportRunner:
                 )
             if job.start_from_bottom:
                 likes = list(reversed(likes))
+
+            self.store.update_progress(
+                job_id,
+                current_phase="Matching tracks on Spotify",
+                total_tracks=len(likes),
+                processed_tracks=0,
+                matched_count=0,
+                unmatched_count=0,
+            )
 
             spotify_matcher = SpotifyTrackMatcher()
             tokens = SpotifyTokens(
@@ -71,12 +80,42 @@ class WebImportRunner:
 
                 if match is None:
                     unmatched_count += 1
+                    self.store.update_progress(
+                        job_id,
+                        current_phase="Matching tracks on Spotify",
+                        total_tracks=len(likes),
+                        processed_tracks=index,
+                        matched_count=len(matched_uris),
+                        unmatched_count=unmatched_count,
+                        current_artist=record.artist,
+                        current_song=record.song,
+                    )
                     continue
 
                 matched_uris.append(match.spotify_uri)
+                self.store.update_progress(
+                    job_id,
+                    current_phase="Matching tracks on Spotify",
+                    total_tracks=len(likes),
+                    processed_tracks=index,
+                    matched_count=len(matched_uris),
+                    unmatched_count=unmatched_count,
+                    current_artist=record.artist,
+                    current_song=record.song,
+                )
 
             playlist = None
             if matched_uris:
+                self.store.update_progress(
+                    job_id,
+                    current_phase="Creating Spotify playlist",
+                    total_tracks=len(likes),
+                    processed_tracks=len(likes),
+                    matched_count=len(matched_uris),
+                    unmatched_count=unmatched_count,
+                    current_artist=None,
+                    current_song=None,
+                )
                 playlist = spotify_api.create_playlist(
                     name=job.playlist_name,
                     description="Imported from SoundCloud parser web app.",
@@ -96,5 +135,5 @@ class WebImportRunner:
                 playlist_url=playlist_url,
             )
         except Exception as error:
-            self.store.update_status(job_id, "failed", error_message=str(error))
+            self.store.update_status(job_id, "failed", error_message=str(error), current_phase="Failed")
             raise

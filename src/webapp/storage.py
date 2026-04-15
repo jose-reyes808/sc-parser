@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Iterator
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, create_engine, select
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from src.models import PendingImportRequest, SpotifyTokens
@@ -15,6 +15,7 @@ from src.models import PendingImportRequest, SpotifyTokens
 class ImportJob:
     id: str
     status: str
+    current_phase: str | None
     soundcloud_user_id: str
     soundcloud_client_id: str
     playlist_name: str
@@ -26,6 +27,10 @@ class ImportJob:
     spotify_display_name: str | None
     playlist_id: str | None
     playlist_url: str | None
+    total_tracks: int
+    processed_tracks: int
+    current_artist: str | None
+    current_song: str | None
     matched_count: int
     unmatched_count: int
     error_message: str | None
@@ -42,6 +47,7 @@ class ImportJobRecord(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    current_phase: Mapped[str | None] = mapped_column(String(64), nullable=True)
     soundcloud_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     soundcloud_client_id: Mapped[str] = mapped_column(String(255), nullable=False)
     playlist_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -53,6 +59,10 @@ class ImportJobRecord(Base):
     spotify_display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     playlist_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     playlist_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    total_tracks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed_tracks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    current_artist: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    current_song: Mapped[str | None] = mapped_column(String(255), nullable=True)
     matched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     unmatched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -77,9 +87,15 @@ class ImportJobStore:
             )
 
         connect_args = {"check_same_thread": False} if normalized_database_url.startswith("sqlite") else {}
-        self.engine = create_engine(normalized_database_url, future=True, pool_pre_ping=True, connect_args=connect_args)
+        self.engine = create_engine(
+            normalized_database_url,
+            future=True,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+        )
         self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False, class_=Session)
         Base.metadata.create_all(self.engine)
+        self._ensure_columns()
 
     def create_job(
         self,
@@ -93,6 +109,7 @@ class ImportJobStore:
         record = ImportJobRecord(
             id=uuid4().hex,
             status="pending",
+            current_phase="Waiting for Spotify login",
             soundcloud_user_id=request.soundcloud_user_id,
             soundcloud_client_id=soundcloud_client_id,
             playlist_name=request.playlist_name,
@@ -104,6 +121,10 @@ class ImportJobStore:
             spotify_display_name=spotify_display_name,
             playlist_id=None,
             playlist_url=None,
+            total_tracks=0,
+            processed_tracks=0,
+            current_artist=None,
+            current_song=None,
             matched_count=0,
             unmatched_count=0,
             error_message=None,
@@ -125,11 +146,19 @@ class ImportJobStore:
 
         return self._record_to_job(record)
 
-    def update_status(self, job_id: str, status: str, error_message: str | None = None) -> None:
+    def update_status(
+        self,
+        job_id: str,
+        status: str,
+        error_message: str | None = None,
+        current_phase: str | None = None,
+    ) -> None:
         with self._session() as session:
             record = self._require_record(session, job_id)
             record.status = status
             record.error_message = error_message
+            if current_phase is not None:
+                record.current_phase = current_phase
             record.updated_at = self._timestamp()
 
     def update_spotify_tokens(self, job_id: str, tokens: SpotifyTokens) -> None:
@@ -138,6 +167,34 @@ class ImportJobStore:
             record.spotify_access_token = tokens.access_token
             record.spotify_refresh_token = tokens.refresh_token
             record.spotify_expires_at = tokens.expires_at
+            record.updated_at = self._timestamp()
+
+    def update_progress(
+        self,
+        job_id: str,
+        *,
+        current_phase: str | None = None,
+        total_tracks: int | None = None,
+        processed_tracks: int | None = None,
+        matched_count: int | None = None,
+        unmatched_count: int | None = None,
+        current_artist: str | None = None,
+        current_song: str | None = None,
+    ) -> None:
+        with self._session() as session:
+            record = self._require_record(session, job_id)
+            if current_phase is not None:
+                record.current_phase = current_phase
+            if total_tracks is not None:
+                record.total_tracks = total_tracks
+            if processed_tracks is not None:
+                record.processed_tracks = processed_tracks
+            if matched_count is not None:
+                record.matched_count = matched_count
+            if unmatched_count is not None:
+                record.unmatched_count = unmatched_count
+            record.current_artist = current_artist
+            record.current_song = current_song
             record.updated_at = self._timestamp()
 
     def mark_completed(
@@ -151,10 +208,14 @@ class ImportJobStore:
         with self._session() as session:
             record = self._require_record(session, job_id)
             record.status = "completed"
+            record.current_phase = "Completed"
             record.matched_count = matched_count
             record.unmatched_count = unmatched_count
             record.playlist_id = playlist_id
             record.playlist_url = playlist_url
+            record.processed_tracks = record.total_tracks
+            record.current_artist = None
+            record.current_song = None
             record.updated_at = self._timestamp()
 
     def _require_record(self, session: Session, job_id: str) -> ImportJobRecord:
@@ -185,6 +246,7 @@ class ImportJobStore:
         return ImportJob(
             id=record.id,
             status=record.status,
+            current_phase=record.current_phase,
             soundcloud_user_id=record.soundcloud_user_id,
             soundcloud_client_id=record.soundcloud_client_id,
             playlist_name=record.playlist_name,
@@ -196,6 +258,10 @@ class ImportJobStore:
             spotify_display_name=record.spotify_display_name,
             playlist_id=record.playlist_id,
             playlist_url=record.playlist_url,
+            total_tracks=record.total_tracks,
+            processed_tracks=record.processed_tracks,
+            current_artist=record.current_artist,
+            current_song=record.current_song,
             matched_count=record.matched_count,
             unmatched_count=record.unmatched_count,
             error_message=record.error_message,
@@ -206,3 +272,16 @@ class ImportJobStore:
     @staticmethod
     def _timestamp() -> datetime:
         return datetime.now(timezone.utc)
+
+    def _ensure_columns(self) -> None:
+        statements = [
+            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_phase VARCHAR(64)",
+            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS total_tracks INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS processed_tracks INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_artist VARCHAR(255)",
+            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_song VARCHAR(255)",
+        ]
+
+        with self.engine.begin() as connection:
+            for statement in statements:
+                connection.exec_driver_sql(statement)

@@ -2,34 +2,162 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Import Status</title>
-    {% if job.status == "pending" or job.status == "running" %}
-    <meta http-equiv="refresh" content="5">
-    {% endif %}
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <h1>Import {{ job.id }}</h1>
-    <p>Status: <strong>{{ job.status }}</strong></p>
-    <p>Spotify Account: {{ job.spotify_display_name or job.spotify_user_id or "Unknown" }}</p>
-    <p>SoundCloud User ID: {{ job.soundcloud_user_id }}</p>
-    <p>Playlist Name: {{ job.playlist_name }}</p>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.14),_transparent_32%)]"></div>
 
-    {% if job.status == "completed" %}
-    <p>Matched tracks: {{ job.matched_count }}</p>
-    <p>Unmatched tracks: {{ job.unmatched_count }}</p>
-    {% if job.playlist_url %}
-    <p><a href="{{ job.playlist_url }}" target="_blank" rel="noreferrer">Open Spotify Playlist</a></p>
-    {% endif %}
-    {% endif %}
+    <main class="relative mx-auto max-w-6xl px-6 py-10">
+        <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+                <p class="text-sm uppercase tracking-[0.2em] text-emerald-300">Import Status</p>
+                <h1 class="mt-2 text-4xl font-semibold text-white">Playlist creation in progress</h1>
+                <p class="mt-3 text-slate-300">Track matching and playlist creation happen in the background. This page updates automatically.</p>
+            </div>
+            <a href="/" class="inline-flex items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10">
+                Start another import
+            </a>
+        </div>
 
-    {% if job.status == "failed" %}
-    <p>Error: {{ job.error_message }}</p>
-    {% endif %}
+        <div class="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+            <section class="rounded-3xl border border-white/10 bg-slate-900/75 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p id="status-label" class="text-sm uppercase tracking-[0.2em] text-emerald-300">{{ job.status }}</p>
+                        <h2 id="phase-label" class="mt-2 text-2xl font-semibold text-white">{{ job.current_phase or job.status }}</h2>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
+                        <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                        <p id="progress-percentage" class="mt-1 text-2xl font-semibold text-white">0%</p>
+                    </div>
+                </div>
 
-    {% if job.status == "pending" or job.status == "running" %}
-    <p>This page refreshes every 5 seconds while the import is running.</p>
-    {% endif %}
+                <div class="mt-6">
+                    <div class="h-4 overflow-hidden rounded-full bg-slate-800">
+                        <div id="progress-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-emerald-400 via-green-400 to-sky-500 transition-all duration-500"></div>
+                    </div>
+                    <div class="mt-3 flex items-center justify-between text-sm text-slate-400">
+                        <span id="progress-count">0 / 0 processed</span>
+                        <span id="matched-count">0 matched</span>
+                    </div>
+                </div>
 
-    <p><a href="/">Start another import</a></p>
+                <div class="mt-8 grid gap-4 md:grid-cols-2">
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">Current Track</p>
+                        <p id="current-track" class="mt-2 text-lg font-medium text-white">Waiting to start...</p>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">Spotify Account</p>
+                        <p id="spotify-account" class="mt-2 text-lg font-medium text-white">{{ job.spotify_display_name or job.spotify_user_id or "Unknown" }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">Playlist Name</p>
+                        <p id="playlist-name" class="mt-2 text-lg font-medium text-white">{{ job.playlist_name }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-sm text-slate-400">SoundCloud User ID</p>
+                        <p id="soundcloud-user" class="mt-2 text-lg font-medium text-white">{{ job.soundcloud_user_id }}</p>
+                    </div>
+                </div>
+
+                <div id="error-card" class="mt-6 hidden rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-rose-100">
+                    <p class="text-sm uppercase tracking-[0.18em] text-rose-200">Import Error</p>
+                    <p id="error-message" class="mt-2 text-sm"></p>
+                </div>
+
+                <div id="playlist-card" class="mt-6 hidden rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-emerald-50">
+                    <p class="text-sm uppercase tracking-[0.18em] text-emerald-200">Playlist Ready</p>
+                    <a id="playlist-link" href="#" target="_blank" rel="noreferrer" class="mt-2 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-50">
+                        Open Spotify Playlist
+                    </a>
+                </div>
+            </section>
+
+            <aside class="space-y-4">
+                <div class="rounded-3xl border border-white/10 bg-slate-900/75 p-5 backdrop-blur-xl">
+                    <p class="text-sm uppercase tracking-[0.2em] text-slate-400">Metrics</p>
+                    <div class="mt-4 grid gap-4">
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p class="text-sm text-slate-400">Total Likes</p>
+                            <p id="total-tracks" class="mt-2 text-3xl font-semibold text-white">{{ job.total_tracks or 0 }}</p>
+                        </div>
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p class="text-sm text-slate-400">Matched</p>
+                            <p id="matched-total" class="mt-2 text-3xl font-semibold text-emerald-300">{{ job.matched_count }}</p>
+                        </div>
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p class="text-sm text-slate-400">Unmatched</p>
+                            <p id="unmatched-total" class="mt-2 text-3xl font-semibold text-amber-300">{{ job.unmatched_count }}</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script>
+        const jobId = "{{ job.id }}";
+
+        function updateUi(data) {
+            const progress = data.progress_percentage || 0;
+            const currentTrack = data.current_artist && data.current_song
+                ? `${data.current_artist} - ${data.current_song}`
+                : (data.current_phase || "Waiting to start...");
+
+            document.getElementById("status-label").textContent = data.status;
+            document.getElementById("phase-label").textContent = data.current_phase || data.status;
+            document.getElementById("progress-percentage").textContent = `${progress}%`;
+            document.getElementById("progress-bar").style.width = `${progress}%`;
+            document.getElementById("progress-count").textContent = `${data.processed_tracks} / ${data.total_tracks} processed`;
+            document.getElementById("matched-count").textContent = `${data.matched_count} matched`;
+            document.getElementById("current-track").textContent = currentTrack;
+            document.getElementById("spotify-account").textContent = data.spotify_display_name || data.spotify_user_id || "Unknown";
+            document.getElementById("playlist-name").textContent = data.playlist_name || "";
+            document.getElementById("soundcloud-user").textContent = data.soundcloud_user_id || "";
+            document.getElementById("total-tracks").textContent = data.total_tracks;
+            document.getElementById("matched-total").textContent = data.matched_count;
+            document.getElementById("unmatched-total").textContent = data.unmatched_count;
+
+            const errorCard = document.getElementById("error-card");
+            const playlistCard = document.getElementById("playlist-card");
+
+            if (data.status === "failed" && data.error_message) {
+                errorCard.classList.remove("hidden");
+                document.getElementById("error-message").textContent = data.error_message;
+            } else {
+                errorCard.classList.add("hidden");
+            }
+
+            if (data.status === "completed" && data.playlist_url) {
+                playlistCard.classList.remove("hidden");
+                document.getElementById("playlist-link").href = data.playlist_url;
+            } else {
+                playlistCard.classList.add("hidden");
+            }
+        }
+
+        async function pollStatus() {
+            try {
+                const response = await fetch(`/api/imports/${jobId}`);
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+                updateUi(data);
+
+                if (data.status === "pending" || data.status === "running") {
+                    setTimeout(pollStatus, 2000);
+                }
+            } catch (error) {
+                setTimeout(pollStatus, 4000);
+            }
+        }
+
+        pollStatus();
+    </script>
 </body>
 </html>
