@@ -129,14 +129,26 @@ class SpotifyTrackMatcher:
 
         queries: list[str] = [self.build_search_query(artist, song)]
 
+        canonical_song = self._canonicalize_song_title(song)
+        if canonical_song and canonical_song != self._normalize_text(song):
+            queries.append(f'track:"{canonical_song}" artist:"{artist.strip()}"')
+
+        contributor_names = list(self._extract_contributors(artist, song))
+        if canonical_song and contributor_names:
+            primary_contributor = max(contributor_names, key=len)
+            queries.append(f'track:"{canonical_song}" artist:"{primary_contributor}"')
+
+        if canonical_song:
+            queries.append(f'track:"{canonical_song}"')
+        queries.append(song.strip())
+
         if artist_source != "Uploader Fallback":
-            return queries
+            return self._dedupe_queries(queries)
 
         inferred_artist, inferred_song = self._infer_artist_from_trailing_mix_title(original_title)
         if inferred_artist and inferred_song:
             queries.append(self.build_search_query(inferred_artist, inferred_song))
 
-        canonical_song = self._canonicalize_song_title(song)
         if canonical_song:
             queries.append(f'track:"{canonical_song}"')
 
