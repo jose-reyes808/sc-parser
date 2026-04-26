@@ -35,7 +35,7 @@ class SoundCloudOAuthService:
 
         query = urlencode(
             {
-                "client_id": self.config.soundcloud_client_id,
+                "client_id": self.config.soundcloud_api_client_id,
                 "redirect_uri": self.config.soundcloud_redirect_uri,
                 "response_type": "code",
                 "code_challenge": code_challenge,
@@ -54,7 +54,7 @@ class SoundCloudOAuthService:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data={
                 "grant_type": "authorization_code",
-                "client_id": self.config.soundcloud_client_id,
+                "client_id": self.config.soundcloud_api_client_id,
                 "client_secret": self.config.soundcloud_client_secret,
                 "redirect_uri": self.config.soundcloud_redirect_uri,
                 "code_verifier": code_verifier,
@@ -73,7 +73,7 @@ class SoundCloudOAuthService:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data={
                 "grant_type": "refresh_token",
-                "client_id": self.config.soundcloud_client_id,
+                "client_id": self.config.soundcloud_api_client_id,
                 "client_secret": self.config.soundcloud_client_secret,
                 "refresh_token": refresh_token,
             },

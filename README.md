@@ -115,6 +115,7 @@ Start from `.env.example`.
 
 ```env
 SOUNDCLOUD_CLIENT_ID=your_soundcloud_client_id
+SOUNDCLOUD_API_CLIENT_ID=your_soundcloud_api_client_id
 SOUNDCLOUD_CLIENT_SECRET=your_soundcloud_client_secret
 SOUNDCLOUD_REDIRECT_URI=http://127.0.0.1:8000/auth/soundcloud/callback
 SPOTIFY_CLIENT_ID=your_spotify_client_id
@@ -129,7 +130,8 @@ REDIS_URL=redis://localhost:6379/0
 
 Notes:
 
-- `SOUNDCLOUD_CLIENT_ID` stays entirely server-side and is never entered by the user
+- `SOUNDCLOUD_CLIENT_ID` is used for resolving profiles and fetching likes
+- `SOUNDCLOUD_API_CLIENT_ID` is used for SoundCloud OAuth and playlist creation
 - `SOUNDCLOUD_REDIRECT_URI` must exactly match the callback configured in your SoundCloud app settings
 - `WEBAPP_SPOTIFY_REDIRECT_URI` must exactly match the callback configured in the Spotify Developer Dashboard
 - in production, `DATABASE_URL` should point to Render Postgres and `REDIS_URL` should point to Render Key Value
@@ -176,6 +178,7 @@ The current deployment was brought up by creating the services directly in Rende
 - `APP_BASE_URL=https://soundcloud-parser.onrender.com`
 - `WEBAPP_SESSION_SECRET=<long random secret>`
 - `SOUNDCLOUD_CLIENT_ID=<server-side soundcloud client id>`
+- `SOUNDCLOUD_API_CLIENT_ID=<soundcloud app client id for OAuth and playlist APIs>`
 - `SOUNDCLOUD_CLIENT_SECRET=<server-side soundcloud client secret>`
 - `SOUNDCLOUD_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/soundcloud/callback`
 - `SPOTIFY_CLIENT_ID=<spotify app client id>`

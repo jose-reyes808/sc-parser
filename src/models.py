@@ -105,6 +105,7 @@ class WebAppConfig:
     redis_url: str
     session_secret: str
     soundcloud_client_id: str
+    soundcloud_api_client_id: str
     soundcloud_client_secret: str
     soundcloud_redirect_uri: str
     spotify_client_id: str
