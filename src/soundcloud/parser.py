@@ -17,12 +17,6 @@ class SoundCloudTitleParser:
         r"^(?:[a-z0-9&'.,+\s]+)\b(?:remix|edit|flip|bootleg|rework|vip|mix)\b$",
         re.IGNORECASE,
     )
-    ARTIST_HINT_PATTERN = re.compile(
-        r"\b(?:feat|ft|featuring|vs|x|with|and)\b|[&,]",
-        re.IGNORECASE,
-    )
-    STRICT_TITLE_SEPARATOR_PATTERN = re.compile(r"\s+[-–—|]\s+")
-    LOOSE_TITLE_SEPARATOR_PATTERN = re.compile(r"\s*[-–—|]\s+")
 
     def __init__(self, settings: ParserSettings) -> None:
         """Store the parser rules that drive cleanup and liveset detection."""
@@ -136,12 +130,10 @@ class SoundCloudTitleParser:
             title_without_brackets,
         )
 
-        normalized_title = re.sub(r"[–—]", "-", title_with_filtered_parens)
+        normalized_title = re.sub(r"[â€“â€”]", "-", title_with_filtered_parens)
         normalized_title = re.sub(r"\s+", " ", normalized_title).strip()
 
-        parts = self.STRICT_TITLE_SEPARATOR_PATTERN.split(normalized_title, maxsplit=1)
-        if len(parts) != 2:
-            parts = self.LOOSE_TITLE_SEPARATOR_PATTERN.split(normalized_title, maxsplit=1)
+        parts = re.split(r"\s+[-â€“â€”|]\s+", normalized_title, maxsplit=1)
 
         if len(parts) == 2:
             left_part = parts[0].strip()
@@ -156,10 +148,6 @@ class SoundCloudTitleParser:
                 artist = uploader
                 song = normalized_title.strip()
                 source = "Uploader Fallback"
-            elif self._looks_like_reversed_artist_credit(left_part, right_part):
-                artist = right_part
-                song = left_part
-                source = "Parsed from Reversed Title"
             else:
                 artist = left_part
                 song = right_part
@@ -202,38 +190,3 @@ class SoundCloudTitleParser:
         if "(" in normalized_value or "[" in normalized_value:
             return False
         return bool(cls.VERSION_ONLY_PATTERN.fullmatch(normalized_value))
-
-    @classmethod
-    def _looks_like_reversed_artist_credit(cls, left_part: str, right_part: str) -> bool:
-        """Detect malformed `Song - Artist` titles before uploader fallback.
-
-        Some repost channels publish tracks as `Song- Artist feat.Guest` instead
-        of `Artist - Song`. We only reverse the split when the right-hand side
-        looks strongly like an artist credit and the left-hand side does not.
-        """
-
-        normalized_left = left_part.strip()
-        normalized_right = right_part.strip()
-        if not normalized_left or not normalized_right:
-            return False
-        if cls._looks_like_artist_credit(normalized_left):
-            return False
-        return cls._looks_like_artist_credit(normalized_right)
-
-    @classmethod
-    def _looks_like_artist_credit(cls, value: str) -> bool:
-        """Decide whether a fragment resembles a contributor credit string."""
-
-        normalized_value = value.strip()
-        if not normalized_value:
-            return False
-        if cls.ARTIST_HINT_PATTERN.search(normalized_value):
-            return True
-
-        words = [word for word in re.split(r"\s+", normalized_value) if word]
-        if len(words) <= 4:
-            capitalized_words = sum(1 for word in words if word[:1].isupper())
-            if capitalized_words == len(words):
-                return True
-
-        return False
