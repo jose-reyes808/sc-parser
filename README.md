@@ -18,6 +18,8 @@ What currently works:
 - background import jobs through Redis + RQ
 - SoundCloud likes fetching and Spotify matching
 - private Spotify playlist creation
+- review page for matched and unmatched SoundCloud rows
+- SoundCloud playlist creation for livesets and Spotify-unmatched tracks
 - live status page with:
   - current phase
   - processed likes out of total likes
@@ -48,6 +50,7 @@ soundcloud-parser/
 |-- .env.example
 |-- templates/
 |   |-- import_not_found.html
+|   |-- import_results.html
 |   |-- import_status.html
 |   `-- index.html
 `-- src/
@@ -70,6 +73,8 @@ soundcloud-parser/
         |-- app.py
         |-- import_runner.py
         |-- queue.py
+        |-- soundcloud_api.py
+        |-- soundcloud_oauth.py
         |-- spotify_api.py
         |-- spotify_oauth.py
         |-- storage.py
@@ -110,6 +115,8 @@ Start from `.env.example`.
 
 ```env
 SOUNDCLOUD_CLIENT_ID=your_soundcloud_client_id
+SOUNDCLOUD_CLIENT_SECRET=your_soundcloud_client_secret
+SOUNDCLOUD_REDIRECT_URI=http://127.0.0.1:8000/auth/soundcloud/callback
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 WEBAPP_SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/spotify/callback
@@ -123,6 +130,7 @@ REDIS_URL=redis://localhost:6379/0
 Notes:
 
 - `SOUNDCLOUD_CLIENT_ID` stays entirely server-side and is never entered by the user
+- `SOUNDCLOUD_REDIRECT_URI` must exactly match the callback configured in your SoundCloud app settings
 - `WEBAPP_SPOTIFY_REDIRECT_URI` must exactly match the callback configured in the Spotify Developer Dashboard
 - in production, `DATABASE_URL` should point to Render Postgres and `REDIS_URL` should point to Render Key Value
 
@@ -157,8 +165,10 @@ The current deployment was brought up by creating the services directly in Rende
 12. Set:
     - `APP_ENV=production`
     - `APP_BASE_URL=https://soundcloud-parser.onrender.com`
+    - `SOUNDCLOUD_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/soundcloud/callback`
     - `WEBAPP_SPOTIFY_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/spotify/callback`
-13. In the Spotify Developer Dashboard, add that exact callback URL.
+13. In the Spotify Developer Dashboard, add the Spotify callback URL.
+14. In your SoundCloud app settings, add the SoundCloud callback URL.
 
 ### Required Render Environment Variables
 
@@ -166,6 +176,8 @@ The current deployment was brought up by creating the services directly in Rende
 - `APP_BASE_URL=https://soundcloud-parser.onrender.com`
 - `WEBAPP_SESSION_SECRET=<long random secret>`
 - `SOUNDCLOUD_CLIENT_ID=<server-side soundcloud client id>`
+- `SOUNDCLOUD_CLIENT_SECRET=<server-side soundcloud client secret>`
+- `SOUNDCLOUD_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/soundcloud/callback`
 - `SPOTIFY_CLIENT_ID=<spotify app client id>`
 - `SPOTIFY_CLIENT_SECRET=<spotify app client secret>`
 - `WEBAPP_SPOTIFY_REDIRECT_URI=https://soundcloud-parser.onrender.com/auth/spotify/callback`

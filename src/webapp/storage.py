@@ -57,6 +57,8 @@ class ImportTrackResult:
     song: str
     original_title: str
     soundcloud_url: str | None
+    soundcloud_track_id: str | None
+    is_liveset: bool
     match_status: str
     match_score: float | None
     spotify_matched_artist: str | None
@@ -118,6 +120,8 @@ class ImportTrackResultRecord(Base):
     song: Mapped[str] = mapped_column(String(255), nullable=False)
     original_title: Mapped[str] = mapped_column(Text, nullable=False)
     soundcloud_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    soundcloud_track_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_liveset: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     match_status: Mapped[str] = mapped_column(String(32), nullable=False)
     match_score: Mapped[str | None] = mapped_column(String(32), nullable=True)
     spotify_matched_artist: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -275,6 +279,8 @@ class ImportJobStore:
                         song=result.song,
                         original_title=result.original_title,
                         soundcloud_url=result.soundcloud_url,
+                        soundcloud_track_id=result.soundcloud_track_id,
+                        is_liveset=result.is_liveset,
                         match_status=result.match_status,
                         match_score=str(result.match_score) if result.match_score is not None else None,
                         spotify_matched_artist=result.spotify_matched_artist,
@@ -412,6 +418,8 @@ class ImportJobStore:
             song=record.song,
             original_title=record.original_title,
             soundcloud_url=record.soundcloud_url,
+            soundcloud_track_id=record.soundcloud_track_id,
+            is_liveset=record.is_liveset,
             match_status=record.match_status,
             match_score=float(record.match_score) if record.match_score is not None else None,
             spotify_matched_artist=record.spotify_matched_artist,
@@ -443,6 +451,8 @@ class ImportJobStore:
             "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS processed_tracks INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_artist VARCHAR(255)",
             "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_song VARCHAR(255)",
+            "ALTER TABLE import_track_results ADD COLUMN IF NOT EXISTS soundcloud_track_id VARCHAR(64)",
+            "ALTER TABLE import_track_results ADD COLUMN IF NOT EXISTS is_liveset BOOLEAN NOT NULL DEFAULT FALSE",
         ]
 
         with self.engine.begin() as connection:

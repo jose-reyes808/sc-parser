@@ -176,6 +176,8 @@ class SettingsLoader:
             redis_url=self._get_env("REDIS_URL", "redis://localhost:6379/0"),
             session_secret=self._require_env("WEBAPP_SESSION_SECRET"),
             soundcloud_client_id=self._require_env("SOUNDCLOUD_CLIENT_ID"),
+            soundcloud_client_secret=self._require_env("SOUNDCLOUD_CLIENT_SECRET"),
+            soundcloud_redirect_uri=self._require_env("SOUNDCLOUD_REDIRECT_URI"),
             spotify_client_id=self._require_env("SPOTIFY_CLIENT_ID"),
             spotify_client_secret=self._require_env("SPOTIFY_CLIENT_SECRET"),
             spotify_redirect_uri=self._require_env("WEBAPP_SPOTIFY_REDIRECT_URI"),

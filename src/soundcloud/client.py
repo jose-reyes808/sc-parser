@@ -132,6 +132,7 @@ class SoundCloudClient:
                     date_uploaded=track.get("created_at"),
                     date_liked=item.get("created_at"),
                     soundcloud_url=track.get("permalink_url"),
+                    soundcloud_track_id=str(track.get("id")) if track.get("id") is not None else None,
                 )
             )
 

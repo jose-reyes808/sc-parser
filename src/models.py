@@ -46,6 +46,7 @@ class TrackRecord:
     date_uploaded: str | None
     date_liked: str | None
     soundcloud_url: str | None
+    soundcloud_track_id: str | None
 
     def to_row(self) -> dict[str, str | None]:
         """Convert the record into a spreadsheet-friendly row payload."""
@@ -58,6 +59,7 @@ class TrackRecord:
             "Date Uploaded": self.date_uploaded,
             "Date Liked": self.date_liked,
             "SoundCloud URL": self.soundcloud_url,
+            "SoundCloud Track ID": self.soundcloud_track_id,
         }
 
 
@@ -103,6 +105,8 @@ class WebAppConfig:
     redis_url: str
     session_secret: str
     soundcloud_client_id: str
+    soundcloud_client_secret: str
+    soundcloud_redirect_uri: str
     spotify_client_id: str
     spotify_client_secret: str
     spotify_redirect_uri: str
@@ -117,6 +121,15 @@ class WebAppConfig:
 @dataclass(frozen=True)
 class SpotifyTokens:
     """Spotify OAuth token bundle with its computed expiration timestamp."""
+
+    access_token: str
+    refresh_token: str | None
+    expires_at: int
+
+
+@dataclass(frozen=True)
+class SoundCloudTokens:
+    """SoundCloud OAuth token bundle used for playlist creation on behalf of a user."""
 
     access_token: str
     refresh_token: str | None

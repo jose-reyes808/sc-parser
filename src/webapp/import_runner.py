@@ -90,6 +90,11 @@ class WebImportRunner:
             review_results: list[ImportTrackResult] = []
 
             for index, record in enumerate(likes, start=1):
+                is_liveset = title_parser.is_liveset(
+                    record.song,
+                    record.artist,
+                    record.original_title,
+                )
                 search_query = spotify_matcher.build_search_query(record.artist, record.song)
                 candidates = spotify_api.search_tracks(search_query)
                 match = spotify_matcher.match(record.artist, record.song, candidates, search_query)
@@ -106,6 +111,8 @@ class WebImportRunner:
                             song=record.song,
                             original_title=record.original_title,
                             soundcloud_url=record.soundcloud_url,
+                            soundcloud_track_id=record.soundcloud_track_id,
+                            is_liveset=is_liveset,
                             match_status="Unmatched",
                             match_score=None,
                             spotify_matched_artist=None,
@@ -136,6 +143,8 @@ class WebImportRunner:
                         song=record.song,
                         original_title=record.original_title,
                         soundcloud_url=record.soundcloud_url,
+                        soundcloud_track_id=record.soundcloud_track_id,
+                        is_liveset=is_liveset,
                         match_status="Matched",
                         match_score=match.match_score,
                         spotify_matched_artist=match.matched_artist,

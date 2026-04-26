@@ -21,6 +21,12 @@
             </a>
         </div>
 
+        {% if flash_message %}
+        <div class="mb-6 rounded-3xl border border-sky-400/25 bg-sky-500/10 px-5 py-4 text-sm text-sky-100">
+            {{ flash_message }}
+        </div>
+        {% endif %}
+
         <div class="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
             <section class="rounded-3xl border border-white/10 bg-slate-900/75 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -82,6 +88,32 @@
                         Review Match Results
                     </a>
                 </div>
+
+                <div id="soundcloud-card" class="mt-6 hidden rounded-2xl border border-orange-300/25 bg-orange-400/10 p-4 text-orange-50">
+                    <p class="text-sm uppercase tracking-[0.18em] text-orange-200">SoundCloud</p>
+                    <p class="mt-2 text-sm text-orange-50/90">Create SoundCloud Livesets and SoundCloud Exclusives playlists from this import.</p>
+                    {% if soundcloud_connected %}
+                    <div class="mt-3 flex flex-wrap gap-3">
+                        <form id="soundcloud-livesets-form" action="" method="post">
+                            <button type="submit" class="inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-orange-50">
+                                Create SoundCloud Livesets Playlist
+                            </button>
+                        </form>
+                        <form id="soundcloud-exclusives-form" action="" method="post">
+                            <button type="submit" class="inline-flex items-center rounded-xl border border-orange-200/40 bg-orange-200/10 px-4 py-2 text-sm font-semibold text-orange-50 hover:bg-orange-200/20">
+                                Create SoundCloud Exclusives Playlist
+                            </button>
+                        </form>
+                        <a id="soundcloud-results-link" href="#" class="inline-flex items-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">
+                            Review Rows
+                        </a>
+                    </div>
+                    {% else %}
+                    <a id="soundcloud-connect-link" href="#" class="mt-3 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-orange-50">
+                        Connect SoundCloud
+                    </a>
+                    {% endif %}
+                </div>
             </section>
 
             <aside class="space-y-4">
@@ -132,6 +164,7 @@
             const errorCard = document.getElementById("error-card");
             const playlistCard = document.getElementById("playlist-card");
             const resultsCard = document.getElementById("results-card");
+            const soundcloudCard = document.getElementById("soundcloud-card");
 
             if (data.status === "failed" && data.error_message) {
                 errorCard.classList.remove("hidden");
@@ -152,6 +185,29 @@
                 document.getElementById("results-link").href = `/imports/${data.id}/results`;
             } else {
                 resultsCard.classList.add("hidden");
+            }
+
+            if (data.status === "completed") {
+                soundcloudCard.classList.remove("hidden");
+                const resultsUrl = `/imports/${data.id}/results`;
+                const resultsActionLink = document.getElementById("soundcloud-results-link");
+                const connectLink = document.getElementById("soundcloud-connect-link");
+                const livesetsForm = document.getElementById("soundcloud-livesets-form");
+                const exclusivesForm = document.getElementById("soundcloud-exclusives-form");
+                if (resultsActionLink) {
+                    resultsActionLink.href = resultsUrl;
+                }
+                if (connectLink) {
+                    connectLink.href = `/auth/soundcloud/start?job_id=${data.id}`;
+                }
+                if (livesetsForm) {
+                    livesetsForm.action = `/imports/${data.id}/soundcloud-playlists/livesets`;
+                }
+                if (exclusivesForm) {
+                    exclusivesForm.action = `/imports/${data.id}/soundcloud-playlists/exclusives`;
+                }
+            } else {
+                soundcloudCard.classList.add("hidden");
             }
         }
 
