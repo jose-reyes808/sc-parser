@@ -2,12 +2,16 @@ from __future__ import annotations
 
 """SoundCloud API wrapper used for creating user playlists from import results."""
 
+import logging
 import time
 from typing import Any, Callable
 
 import requests
 
 from src.models import SoundCloudTokens
+
+
+logger = logging.getLogger(__name__)
 
 
 class SoundCloudApiClient:
@@ -83,12 +87,38 @@ class SoundCloudApiClient:
                 return
 
             try:
+                logger.info(
+                    "Attempting SoundCloud playlist update for playlist %s with %s accepted tracks and %s candidate tracks.",
+                    playlist_id,
+                    len(accepted_ids),
+                    len(candidate_ids),
+                )
                 self.set_playlist_tracks(playlist_id, accepted_ids + candidate_ids)
                 accepted_ids.extend(candidate_ids)
+                logger.info(
+                    "SoundCloud playlist %s accepted %s additional tracks. Playlist now has %s tracks.",
+                    playlist_id,
+                    len(candidate_ids),
+                    len(accepted_ids),
+                )
                 return
-            except requests.exceptions.HTTPError:
+            except requests.exceptions.HTTPError as error:
+                response = error.response
+                logger.warning(
+                    "SoundCloud rejected playlist update for playlist %s. accepted=%s candidate=%s status=%s body=%s",
+                    playlist_id,
+                    len(accepted_ids),
+                    len(candidate_ids),
+                    response.status_code if response is not None else None,
+                    response.text[:500] if response is not None and response.text else None,
+                )
                 if len(candidate_ids) == 1:
                     skipped_ids.extend(candidate_ids)
+                    logger.warning(
+                        "Skipping SoundCloud track %s because SoundCloud would not accept it in playlist %s.",
+                        candidate_ids[0],
+                        playlist_id,
+                    )
                     return
 
             midpoint = len(candidate_ids) // 2

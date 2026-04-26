@@ -23,6 +23,7 @@ from src.webapp.tasks import run_import_job
 
 
 logger = logging.getLogger(__name__)
+SOUNDCLOUD_PLAYLIST_TRACK_LIMIT = 500
 
 # This factory is the composition root for the deployed application. Keeping
 # dependency assembly here makes the request layer straightforward and prevents
@@ -389,26 +390,53 @@ def create_app() -> FastAPI:
         )
 
         try:
-            playlist, accepted_ids, skipped_ids = soundcloud_api.create_playlist_best_effort(
-                title=playlist_title,
-                track_ids=track_ids,
-                description=playlist_description,
-                sharing="private",
-            )
             persist_tokens(soundcloud_api.tokens)
-            playlist_url = playlist.get("permalink_url")
-            if skipped_ids:
+            track_batches = [
+                track_ids[index:index + SOUNDCLOUD_PLAYLIST_TRACK_LIMIT]
+                for index in range(0, len(track_ids), SOUNDCLOUD_PLAYLIST_TRACK_LIMIT)
+            ]
+            created_playlists: list[tuple[dict[str, object], list[str], list[str]]] = []
+
+            for index, track_batch in enumerate(track_batches, start=1):
+                batch_title = (
+                    playlist_title
+                    if len(track_batches) == 1
+                    else f"{playlist_title} - Part {index}"
+                )
+                logger.info(
+                    "Creating SoundCloud playlist batch %s/%s for job %s with %s tracks.",
+                    index,
+                    len(track_batches),
+                    job_id,
+                    len(track_batch),
+                )
+                created_playlists.append(
+                    soundcloud_api.create_playlist_best_effort(
+                        title=batch_title,
+                        track_ids=track_batch,
+                        description=playlist_description,
+                        sharing="private",
+                    )
+                )
+
+            total_added = sum(len(accepted_ids) for _, accepted_ids, _ in created_playlists)
+            total_skipped = sum(len(skipped_ids) for _, _, skipped_ids in created_playlists)
+            playlist_urls = [
+                str(playlist.get("permalink_url"))
+                for playlist, _, _ in created_playlists
+                if playlist.get("permalink_url")
+            ]
+
+            if total_skipped:
                 request.session["flash_message"] = (
-                    f"{playlist_title} created with {len(accepted_ids)} tracks. "
-                    f"{len(skipped_ids)} tracks were skipped because SoundCloud would not accept them."
-                    if not playlist_url
-                    else f"{playlist_title} created with {len(accepted_ids)} tracks and {len(skipped_ids)} skipped: {playlist_url}"
+                    f"{playlist_title} created across {len(created_playlists)} playlist(s) with "
+                    f"{total_added} tracks added and {total_skipped} skipped. "
+                    f"{' '.join(playlist_urls)}".strip()
                 )
             else:
                 request.session["flash_message"] = (
-                    f"{playlist_title} created successfully."
-                    if playlist_url is None
-                    else f"{playlist_title} created successfully: {playlist_url}"
+                    f"{playlist_title} created across {len(created_playlists)} playlist(s). "
+                    f"{' '.join(playlist_urls)}".strip()
                 )
         except Exception:
             logger.exception("SoundCloud playlist creation failed.")
