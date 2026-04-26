@@ -6,7 +6,6 @@ import re
 
 from src.models import ParserSettings
 
-
 # SoundCloud metadata is noisy enough that title interpretation deserves its
 # own domain object. Treating parsing as a separate concern keeps the import
 # pipeline readable and makes the matching behavior easier to refine over time.
@@ -130,10 +129,10 @@ class SoundCloudTitleParser:
             title_without_brackets,
         )
 
-        normalized_title = re.sub(r"[â€“â€”]", "-", title_with_filtered_parens)
+        normalized_title = re.sub(r"[–—]", "-", title_with_filtered_parens)
         normalized_title = re.sub(r"\s+", " ", normalized_title).strip()
 
-        parts = re.split(r"\s+[-â€“â€”|]\s+", normalized_title, maxsplit=1)
+        parts = re.split(r"\s+[-–—|]\s+", normalized_title, maxsplit=1)
 
         if len(parts) == 2:
             left_part = parts[0].strip()
