@@ -46,6 +46,7 @@ DEFAULT_LIVESET_KEYWORDS = [
     "ultra miami",
     "beyond wonderland",
     "mini mix",
+    "minimix",
     "night owl radio",
     "metronome mix",
     "diplo n friends",

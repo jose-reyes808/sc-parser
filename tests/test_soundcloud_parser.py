@@ -267,6 +267,7 @@ class SoundCloudTitleParserTests(unittest.TestCase):
         liveset_titles = [
             "Night Owl Radio 007 ft. MK and JAUZ",
             "Metronome Mix #50 [www.insomniac.com]",
+            "Blue Suit MiniMix",
             "Diplo N Friends Guest Mix - Jauz",
             "500k Melbourne Tribute",
             "Menji Mix",
