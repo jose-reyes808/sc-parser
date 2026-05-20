@@ -445,16 +445,29 @@ class ImportJobStore:
         separate migration tool.
         """
 
-        statements = [
-            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_phase VARCHAR(64)",
-            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS total_tracks INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS processed_tracks INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_artist VARCHAR(255)",
-            "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS current_song VARCHAR(255)",
-            "ALTER TABLE import_track_results ADD COLUMN IF NOT EXISTS soundcloud_track_id VARCHAR(64)",
-            "ALTER TABLE import_track_results ADD COLUMN IF NOT EXISTS is_liveset BOOLEAN NOT NULL DEFAULT FALSE",
+        columns = [
+            ("import_jobs", "current_phase", "VARCHAR(64)"),
+            ("import_jobs", "total_tracks", "INTEGER NOT NULL DEFAULT 0"),
+            ("import_jobs", "processed_tracks", "INTEGER NOT NULL DEFAULT 0"),
+            ("import_jobs", "current_artist", "VARCHAR(255)"),
+            ("import_jobs", "current_song", "VARCHAR(255)"),
+            ("import_track_results", "soundcloud_track_id", "VARCHAR(64)"),
+            ("import_track_results", "is_liveset", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ]
 
         with self.engine.begin() as connection:
-            for statement in statements:
+            for table_name, column_name, column_definition in columns:
+                if connection.dialect.name == "sqlite":
+                    existing_columns = {
+                        row[1]
+                        for row in connection.exec_driver_sql(f"PRAGMA table_info({table_name})")
+                    }
+                    if column_name in existing_columns:
+                        continue
+                    statement = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
+                else:
+                    statement = (
+                        f"ALTER TABLE {table_name} "
+                        f"ADD COLUMN IF NOT EXISTS {column_name} {column_definition}"
+                    )
                 connection.exec_driver_sql(statement)

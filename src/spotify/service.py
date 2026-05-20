@@ -72,6 +72,8 @@ class SpotifyMatchService:
                     song,
                     candidates,
                     candidate_query,
+                    artist_source=self._safe_cell(row.get("Artist Source")),
+                    original_title=self._safe_cell(row.get("Original Title")),
                 )
                 if (
                     candidate_best is not None
@@ -83,11 +85,44 @@ class SpotifyMatchService:
                     song,
                     candidates,
                     candidate_query,
+                    artist_source=self._safe_cell(row.get("Artist Source")),
+                    original_title=self._safe_cell(row.get("Original Title")),
                 )
                 if candidate_match is not None:
                     search_query = candidate_query
                     match = candidate_match
                     break
+
+            if match is None:
+                swapped_search_queries = self.spotify_matcher.build_swapped_orientation_search_queries(
+                    artist,
+                    song,
+                )
+                for candidate_query in swapped_search_queries:
+                    candidates = self.spotify_client.search_tracks(candidate_query)
+                    candidate_best = self.spotify_matcher.find_best_candidate(
+                        song,
+                        artist,
+                        candidates,
+                        candidate_query,
+                        original_title=self._safe_cell(row.get("Original Title")),
+                    )
+                    if (
+                        candidate_best is not None
+                        and (best_candidate is None or candidate_best.match_score > best_candidate.match_score)
+                    ):
+                        best_candidate = candidate_best
+                    candidate_match = self.spotify_matcher.match_swapped_orientation(
+                        artist,
+                        song,
+                        candidates,
+                        candidate_query,
+                        original_title=self._safe_cell(row.get("Original Title")),
+                    )
+                    if candidate_match is not None:
+                        search_query = candidate_query
+                        match = candidate_match
+                        break
 
             print(f"[{row_index}/{total_rows}] Matching {artist} - {song}")
 

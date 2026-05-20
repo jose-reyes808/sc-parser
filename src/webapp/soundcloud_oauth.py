@@ -40,6 +40,7 @@ class SoundCloudOAuthService:
                 "response_type": "code",
                 "code_challenge": code_challenge,
                 "code_challenge_method": "S256",
+                "display": "popup",
                 "state": state,
             },
             quote_via=quote,

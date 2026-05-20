@@ -104,22 +104,24 @@ class SoundCloudApiClient:
                 return
             except requests.exceptions.HTTPError as error:
                 response = error.response
-                logger.warning(
-                    "SoundCloud rejected playlist update for playlist %s. accepted=%s candidate=%s status=%s body=%s",
+                if len(candidate_ids) == 1:
+                    skipped_ids.extend(candidate_ids)
+                    logger.warning(
+                        "Skipping SoundCloud track %s because SoundCloud rejected it for playlist %s. status=%s body=%s",
+                        candidate_ids[0],
+                        playlist_id,
+                        response.status_code if response is not None else None,
+                        response.text[:500] if response is not None and response.text else None,
+                    )
+                    return
+
+                logger.info(
+                    "SoundCloud rejected a playlist update chunk for playlist %s; splitting it to find unsupported tracks. accepted=%s candidate=%s status=%s",
                     playlist_id,
                     len(accepted_ids),
                     len(candidate_ids),
                     response.status_code if response is not None else None,
-                    response.text[:500] if response is not None and response.text else None,
                 )
-                if len(candidate_ids) == 1:
-                    skipped_ids.extend(candidate_ids)
-                    logger.warning(
-                        "Skipping SoundCloud track %s because SoundCloud would not accept it in playlist %s.",
-                        candidate_ids[0],
-                        playlist_id,
-                    )
-                    return
 
             midpoint = len(candidate_ids) // 2
             add_chunk(candidate_ids[:midpoint])

@@ -3,6 +3,7 @@ from __future__ import annotations
 """Title-cleaning and parsing rules for noisy SoundCloud track names."""
 
 import re
+from html import unescape
 
 from src.models import ParserSettings
 
@@ -13,7 +14,22 @@ class SoundCloudTitleParser:
     """Convert raw SoundCloud titles into cleaner artist and song values."""
 
     VERSION_ONLY_PATTERN = re.compile(
-        r"^(?:[a-z0-9&'.,+\s]+)\b(?:remix|edit|flip|bootleg|rework|vip|mix)\b$",
+        r"^(?:[a-z0-9&'.,+]+\s+)+(?:remix|edit|flip|bootleg|rebirth|rework|vip|mix)\b$",
+        re.IGNORECASE,
+    )
+    UNSPACED_VERSION_SUFFIX_PATTERN = re.compile(
+        r"^(?P<title>.+?\S)-(?P<version>[a-z0-9&'.,+][a-z0-9&'.,+\s]*?\b(?:remix|edit|flip|bootleg|rebirth|rework|vip|mix))$",
+        re.IGNORECASE,
+    )
+    UNSPACED_TRAILING_ARTIST_PATTERN = re.compile(
+        r"^(?P<title>.+?)-\s*(?P<artist>[a-z0-9&'.,+\s]+?\b(?:feat|ft|featuring)\.?\s*[a-z0-9&'.,+\s]+)$",
+        re.IGNORECASE,
+    )
+    TIGHT_ARTIST_TITLE_PATTERN = re.compile(
+        r"^(?P<artist>.+?\S)-\s+(?P<title>[A-Z0-9][^-\[\]]+)$",
+    )
+    TITLE_BY_ARTIST_PATTERN = re.compile(
+        r"^(?P<title>.+?)\s+by\s+(?P<artist>[a-z0-9&'.,+\s]+)$",
         re.IGNORECASE,
     )
 
@@ -30,7 +46,7 @@ class SoundCloudTitleParser:
         if not text:
             return text
 
-        cleaned_text = text.strip()
+        cleaned_text = unescape(text.strip())
         cleaned_text = re.sub(
             r"\([^)]*out now[^)]*\)",
             "",
@@ -50,6 +66,12 @@ class SoundCloudTitleParser:
         cleaned_text = re.sub(r"\s*-\s*$", "", cleaned_text)
         cleaned_text = re.sub(r"\(\s*\)", "", cleaned_text)
         cleaned_text = re.sub(r"\[\s*\]", "", cleaned_text)
+        cleaned_text = re.sub(
+            r"\[[^\]\)]*\brecordings?\b[\]\)]?",
+            "",
+            cleaned_text,
+            flags=re.IGNORECASE,
+        )
         return cleaned_text.strip()
 
     # This second pass is about normalization, not interpretation. By the time
@@ -131,10 +153,25 @@ class SoundCloudTitleParser:
 
         normalized_title = re.sub(r"[–—]", "-", title_with_filtered_parens)
         normalized_title = re.sub(r"\s+", " ", normalized_title).strip()
+        trailing_artist_match = self._match_unspaced_trailing_artist(normalized_title)
+        tight_artist_title_match = (
+            None if trailing_artist_match is not None else self._match_tight_artist_title(normalized_title)
+        )
+        normalized_title = self._normalize_unspaced_version_suffix(normalized_title)
 
-        parts = re.split(r"\s+[-–—|]\s+", normalized_title, maxsplit=1)
+        title_by_artist_match = self._match_title_by_artist(normalized_title)
+        parts = re.split(r"\s+[-–—|~]\s+", normalized_title, maxsplit=1)
 
-        if len(parts) == 2:
+        if tight_artist_title_match is not None:
+            artist, song = tight_artist_title_match
+            source = "Parsed from Title"
+        elif trailing_artist_match is not None:
+            song, artist = trailing_artist_match
+            source = "Parsed from Title"
+        elif title_by_artist_match is not None:
+            song, artist = title_by_artist_match
+            source = "Parsed from Title"
+        elif len(parts) == 2:
             left_part = parts[0].strip()
             right_part = parts[1].strip()
 
@@ -143,7 +180,10 @@ class SoundCloudTitleParser:
             # metadata rather than as a standalone title. In that shape, the
             # uploader is often a better artist signal than the left-hand side,
             # and preserving the full title gives the matcher more context.
-            if self._looks_like_version_only_fragment(right_part):
+            if (
+                self._looks_like_version_only_fragment(right_part)
+                and self._normalize_identity_text(left_part) != self._normalize_identity_text(uploader)
+            ):
                 artist = uploader
                 song = normalized_title.strip()
                 source = "Uploader Fallback"
@@ -159,7 +199,7 @@ class SoundCloudTitleParser:
         if keep_brackets:
             song = f"{song} {' '.join(keep_brackets)}".strip()
 
-        clean_artist = self.postprocess_text(artist) or ""
+        clean_artist = self._strip_leading_index_marker(self.postprocess_text(artist) or "")
         clean_song = self.postprocess_text(song) or ""
         return clean_artist, clean_song, source
 
@@ -189,3 +229,75 @@ class SoundCloudTitleParser:
         if "(" in normalized_value or "[" in normalized_value:
             return False
         return bool(cls.VERSION_ONLY_PATTERN.fullmatch(normalized_value))
+
+    @staticmethod
+    def _normalize_identity_text(value: str) -> str:
+        """Normalize text enough to compare uploader and parsed artist names."""
+
+        return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+    @staticmethod
+    def _strip_leading_index_marker(value: str) -> str:
+        """Remove playlist/list numbering accidentally captured as artist text."""
+
+        return re.sub(r"^\s*\d+\.\s+", "", value).strip()
+
+    @classmethod
+    def _normalize_unspaced_version_suffix(cls, value: str) -> str:
+        """Preserve version suffixes when SoundCloud omits spaces around the dash."""
+
+        match = cls.UNSPACED_VERSION_SUFFIX_PATTERN.fullmatch(value.strip())
+        if match is None:
+            return value
+
+        title = match.group("title").strip()
+        version = match.group("version").strip()
+        if not title or not version:
+            return value
+
+        return f"{title} ({version})"
+
+    @classmethod
+    def _match_unspaced_trailing_artist(cls, value: str) -> tuple[str, str] | None:
+        """Detect title-first uploads with a tight dash before artist credits."""
+
+        match = cls.UNSPACED_TRAILING_ARTIST_PATTERN.fullmatch(value.strip())
+        if match is None:
+            return None
+
+        title = match.group("title").strip()
+        artist = match.group("artist").strip()
+        if not title or not artist:
+            return None
+
+        return title, artist
+
+    @classmethod
+    def _match_tight_artist_title(cls, value: str) -> tuple[str, str] | None:
+        """Detect `Artist- Title` uploads that omit the space before the dash."""
+
+        match = cls.TIGHT_ARTIST_TITLE_PATTERN.fullmatch(value.strip())
+        if match is None:
+            return None
+
+        artist = match.group("artist").strip()
+        title = match.group("title").strip()
+        if not artist or not title:
+            return None
+
+        return artist, title
+
+    @classmethod
+    def _match_title_by_artist(cls, value: str) -> tuple[str, str] | None:
+        """Detect title-first uploads written as `Song by Artist`."""
+
+        match = cls.TITLE_BY_ARTIST_PATTERN.fullmatch(value.strip())
+        if match is None:
+            return None
+
+        title = match.group("title").strip()
+        artist = match.group("artist").strip()
+        if not title or not artist:
+            return None
+
+        return title, artist

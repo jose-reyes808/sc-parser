@@ -111,6 +111,8 @@ class WebImportRunner:
                         record.song,
                         candidates,
                         candidate_query,
+                        artist_source=record.artist_source,
+                        original_title=record.original_title,
                     )
                     if (
                         candidate_best is not None
@@ -122,11 +124,44 @@ class WebImportRunner:
                         record.song,
                         candidates,
                         candidate_query,
+                        artist_source=record.artist_source,
+                        original_title=record.original_title,
                     )
                     if candidate_match is not None:
                         search_query = candidate_query
                         match = candidate_match
                         break
+
+                if match is None:
+                    swapped_search_queries = spotify_matcher.build_swapped_orientation_search_queries(
+                        record.artist,
+                        record.song,
+                    )
+                    for candidate_query in swapped_search_queries:
+                        candidates = spotify_api.search_tracks(candidate_query)
+                        candidate_best = spotify_matcher.find_best_candidate(
+                            record.song,
+                            record.artist,
+                            candidates,
+                            candidate_query,
+                            original_title=record.original_title,
+                        )
+                        if (
+                            candidate_best is not None
+                            and (best_candidate is None or candidate_best.match_score > best_candidate.match_score)
+                        ):
+                            best_candidate = candidate_best
+                        candidate_match = spotify_matcher.match_swapped_orientation(
+                            record.artist,
+                            record.song,
+                            candidates,
+                            candidate_query,
+                            original_title=record.original_title,
+                        )
+                        if candidate_match is not None:
+                            search_query = candidate_query
+                            match = candidate_match
+                            break
                 print(f"[web import {job_id}] {index}/{len(likes)} {record.artist} - {record.song}")
 
                 if match is None:

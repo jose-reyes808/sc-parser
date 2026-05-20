@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from src.config import SettingsLoader
 from src.models import PendingImportRequest, SoundCloudTokens
 from src.soundcloud.client import SoundCloudClient
-from src.webapp.queue import create_queue
+from src.webapp.queue import create_queue, should_use_local_thread_queue
 from src.webapp.soundcloud_api import SoundCloudApiClient
 from src.webapp.soundcloud_oauth import SoundCloudOAuthService
 from src.webapp.spotify_oauth import SpotifyOAuthService
@@ -43,7 +43,10 @@ def create_app() -> FastAPI:
     store = ImportJobStore(web_config.database_url)
     oauth_service = SpotifyOAuthService(web_config)
     soundcloud_oauth_service = SoundCloudOAuthService(web_config)
-    queue = create_queue(web_config.redis_url)
+    queue = create_queue(
+        web_config.redis_url,
+        use_local_thread_queue=should_use_local_thread_queue(web_config.environment),
+    )
 
     app = FastAPI(title="SoundCloud Parser Web App")
     app.add_middleware(SessionMiddleware, secret_key=web_config.session_secret)

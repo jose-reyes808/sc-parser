@@ -2,12 +2,17 @@ from __future__ import annotations
 
 """Spotify Web API wrapper used by the FastAPI app and worker."""
 
+import logging
 import time
 from typing import Any, Callable
 
 import requests
 
 from src.models import SpotifyTokens
+
+
+logger = logging.getLogger(__name__)
+TRANSIENT_SEARCH_STATUS_CODES = {429, 500, 502, 503, 504}
 
 # The web app needs token refresh semantics that are coupled to persisted job
 # state, which is why this client is separate from the older CLI client.
@@ -35,15 +40,33 @@ class SpotifyApiClient:
     def search_tracks(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """Search Spotify for candidate tracks to match against one SoundCloud row."""
 
-        response = self._request(
-            "GET",
-            "/search",
-            params={
-                "q": query,
-                "type": "track",
-                "limit": limit,
-            },
-        )
+        try:
+            response = self._request(
+                "GET",
+                "/search",
+                params={
+                    "q": query,
+                    "type": "track",
+                    "limit": limit,
+                },
+            )
+        except requests.exceptions.HTTPError as error:
+            response = error.response
+            if response is None or response.status_code not in TRANSIENT_SEARCH_STATUS_CODES:
+                raise
+            logger.warning(
+                "Spotify search failed with transient status %s; treating query as unmatched: %s",
+                response.status_code,
+                query,
+            )
+            return []
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as error:
+            logger.warning(
+                "Spotify search failed with a transient network error; treating query as unmatched: %s",
+                query,
+                exc_info=error,
+            )
+            return []
         return response.json().get("tracks", {}).get("items", [])
 
     def create_playlist(
