@@ -240,7 +240,7 @@ def create_app() -> FastAPI:
 
             request.session.pop("pending_import", None)
             request.session.pop("spotify_oauth_state", None)
-            queue.enqueue(run_import_job, job.id, job_timeout="30m")
+            queue.enqueue(run_import_job, job.id, job_timeout="2h")
         except requests.exceptions.HTTPError as error:
             logger.exception("Spotify callback failed during import initialization.")
             if error.response is not None and error.response.status_code == 403:
